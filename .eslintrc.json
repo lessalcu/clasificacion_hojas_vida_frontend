@@ -1,0 +1,26 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:prettier/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "prettier"],
+  "root": true,
+  "rules": {
+    "prettier/prettier": [
+      "error",
+      {
+        "tabWidth": 2,
+        "semi": true,
+        "endOfLine": "auto",
+        "singleQuote": false,
+        "trailingComma": "es5"
+      }
+    ],
+    "eqeqeq": "error",
+    "no-alert": "error",
+    "no-return-assign": "error",
+    "@typescript-eslint/no-explicit-any": "warn"
+  }
+}
