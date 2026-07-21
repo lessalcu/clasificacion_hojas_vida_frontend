@@ -9,6 +9,42 @@ body {
   margin: 0;
 }
 
+html {
+  background: #f5f7fb;
+}
+
 body {
-  background: #f5f6f8;
+  overflow-x: hidden;
+  background: #f5f7fb;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  color: #ffffff;
+  background: #1976d2;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #b6c4d6 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #b6c4d6;
+  border-radius: 999px;
 }

@@ -1,21 +1,22 @@
 "use client";
 
 import { useState } from "react";
+
 import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
-import DeleteIcon from "@mui/icons-material/Delete";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
-import EditIcon from "@mui/icons-material/Edit";
 import IconButton from "@mui/material/IconButton";
 import LinearProgress from "@mui/material/LinearProgress";
 import Paper from "@mui/material/Paper";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -27,6 +28,7 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { toast } from "react-toastify";
+
 import {
   useCreateJobProfile,
   useDeleteJobProfile,
@@ -34,8 +36,8 @@ import {
   useUpdateJobProfile,
 } from "@/services/api/job-profiles/use-job-profiles";
 import type {
+  CreateJobProfilePayload,
   JobProfile,
-  JobProfilePayload,
 } from "@/services/api/types/job-profile";
 
 type JobProfileFormValues = {
@@ -48,6 +50,10 @@ type JobProfileFormValues = {
   languages: string;
 };
 
+type JobProfileFormErrors = Partial<Record<keyof JobProfileFormValues, string>>;
+
+const TOAST_DURATION = 5000;
+
 const initialFormValues: JobProfileFormValues = {
   title: "",
   description: "",
@@ -58,32 +64,32 @@ const initialFormValues: JobProfileFormValues = {
   languages: "",
 };
 
-const parseCommaSeparatedValues = (value: string) => {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+const parseCommaSeparatedValues = (value: string): string[] => {
+  return Array.from(
+    new Map(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((item) => [item.toLowerCase(), item])
+    ).values()
+  );
 };
 
-const joinValues = (values?: string[]) => {
-  return values?.join(", ") ?? "";
+const joinValues = (values: string[] | null | undefined): string => {
+  return Array.isArray(values) ? values.join(", ") : "";
 };
 
-const normalizeTextValue = (value: string) => {
-  const trimmedValue = value.trim();
-
-  return trimmedValue.length > 0 ? trimmedValue : null;
-};
-
-const buildPayload = (values: JobProfileFormValues): JobProfilePayload => {
+const buildPayload = (
+  values: JobProfileFormValues
+): CreateJobProfilePayload => {
   return {
-    created_by: null,
     title: values.title.trim(),
-    description: normalizeTextValue(values.description),
+    description: values.description.trim(),
     required_skills: parseCommaSeparatedValues(values.requiredSkills),
     technologies: parseCommaSeparatedValues(values.technologies),
-    experience_requirement: normalizeTextValue(values.experienceRequirement),
-    education_requirement: normalizeTextValue(values.educationRequirement),
+    experience_requirement: values.experienceRequirement.trim(),
+    education_requirement: values.educationRequirement.trim(),
     languages: parseCommaSeparatedValues(values.languages),
   };
 };
@@ -102,19 +108,144 @@ const buildFormValuesFromProfile = (
   };
 };
 
-const renderChips = (items?: string[]) => {
+const validateForm = (values: JobProfileFormValues): JobProfileFormErrors => {
+  const errors: JobProfileFormErrors = {};
+
+  const title = values.title.trim();
+  const description = values.description.trim();
+  const requiredSkills = parseCommaSeparatedValues(values.requiredSkills);
+  const technologies = parseCommaSeparatedValues(values.technologies);
+  const experienceRequirement = values.experienceRequirement.trim();
+  const educationRequirement = values.educationRequirement.trim();
+  const languages = parseCommaSeparatedValues(values.languages);
+
+  if (!title) {
+    errors.title = "El título es obligatorio.";
+  } else if (title.length < 3) {
+    errors.title = "El título debe tener al menos 3 caracteres.";
+  } else if (title.length > 120) {
+    errors.title = "El título no puede superar los 120 caracteres.";
+  }
+
+  if (!description) {
+    errors.description = "La descripción es obligatoria.";
+  } else if (description.length < 3) {
+    errors.description = "La descripción debe tener al menos 3 caracteres.";
+  } else if (description.length > 1000) {
+    errors.description = "La descripción no puede superar los 1000 caracteres.";
+  }
+
+  if (requiredSkills.length === 0) {
+    errors.requiredSkills = "Debe ingresar al menos una habilidad requerida.";
+  } else if (requiredSkills.length > 30) {
+    errors.requiredSkills = "Solo puede ingresar hasta 30 habilidades.";
+  }
+
+  if (technologies.length === 0) {
+    errors.technologies = "Debe ingresar al menos una tecnología.";
+  } else if (technologies.length > 30) {
+    errors.technologies = "Solo puede ingresar hasta 30 tecnologías.";
+  }
+
+  if (!experienceRequirement) {
+    errors.experienceRequirement =
+      "El requisito de experiencia es obligatorio.";
+  } else if (experienceRequirement.length < 2) {
+    errors.experienceRequirement =
+      "El requisito de experiencia debe tener al menos 2 caracteres.";
+  } else if (experienceRequirement.length > 250) {
+    errors.experienceRequirement =
+      "El requisito de experiencia no puede superar los 250 caracteres.";
+  }
+
+  if (!educationRequirement) {
+    errors.educationRequirement = "El requisito de educación es obligatorio.";
+  } else if (educationRequirement.length < 2) {
+    errors.educationRequirement =
+      "El requisito de educación debe tener al menos 2 caracteres.";
+  } else if (educationRequirement.length > 250) {
+    errors.educationRequirement =
+      "El requisito de educación no puede superar los 250 caracteres.";
+  }
+
+  if (languages.length === 0) {
+    errors.languages = "Debe ingresar al menos un idioma.";
+  } else if (languages.length > 20) {
+    errors.languages = "Solo puede ingresar hasta 20 idiomas.";
+  }
+
+  return errors;
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Ocurrió un error inesperado.";
+};
+
+const showSuccessToast = (message: string) => {
+  toast.success(message, {
+    autoClose: TOAST_DURATION,
+  });
+};
+
+const showErrorToast = (message: string) => {
+  toast.error(message, {
+    autoClose: TOAST_DURATION,
+  });
+};
+
+const renderChips = (items: string[] | null | undefined) => {
   if (!items?.length) {
-    return <Typography color="text.secondary">-</Typography>;
+    return (
+      <Typography variant="body2" color="text.secondary">
+        -
+      </Typography>
+    );
   }
 
   return (
-    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-      {items.slice(0, 4).map((item) => (
-        <Chip key={item} label={item} size="small" />
+    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+      {items.map((item) => (
+        <Chip
+          key={item}
+          label={item}
+          size="small"
+          sx={{
+            height: 24,
+            maxWidth: "100%",
+            fontSize: "0.72rem",
+            "& .MuiChip-label": {
+              px: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            },
+          }}
+        />
       ))}
-
-      {items.length > 4 && <Chip label={`+${items.length - 4}`} size="small" />}
     </Stack>
+  );
+};
+
+const TextTableCell = ({ value }: { value: string | null | undefined }) => {
+  const displayValue = value?.trim() || "-";
+
+  return (
+    <Tooltip title={displayValue} placement="top">
+      <Typography
+        variant="body2"
+        sx={{
+          fontSize: "0.78rem",
+          lineHeight: 1.4,
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {displayValue}
+      </Typography>
+    </Tooltip>
   );
 };
 
@@ -127,27 +258,36 @@ const JobProfilesPageContent = () => {
   const deleteJobProfileMutation = useDeleteJobProfile();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
   const [selectedProfile, setSelectedProfile] = useState<JobProfile | null>(
     null
   );
+
   const [formValues, setFormValues] =
     useState<JobProfileFormValues>(initialFormValues);
 
+  const [formErrors, setFormErrors] = useState<JobProfileFormErrors>({});
+
   const jobProfiles = data ?? [];
+
   const isSaving =
     createJobProfileMutation.isPending || updateJobProfileMutation.isPending;
+
   const isDeleting = deleteJobProfileMutation.isPending;
+
   const isEditMode = Boolean(selectedProfile);
 
   const handleOpenCreateDialog = () => {
     setSelectedProfile(null);
     setFormValues(initialFormValues);
+    setFormErrors({});
     setIsDialogOpen(true);
   };
 
   const handleOpenEditDialog = (profile: JobProfile) => {
     setSelectedProfile(profile);
     setFormValues(buildFormValuesFromProfile(profile));
+    setFormErrors({});
     setIsDialogOpen(true);
   };
 
@@ -159,6 +299,7 @@ const JobProfilesPageContent = () => {
     setIsDialogOpen(false);
     setSelectedProfile(null);
     setFormValues(initialFormValues);
+    setFormErrors({});
   };
 
   const handleChangeValue = (
@@ -169,11 +310,21 @@ const JobProfilesPageContent = () => {
       ...currentValues,
       [field]: value,
     }));
+
+    setFormErrors((currentErrors) => ({
+      ...currentErrors,
+      [field]: undefined,
+    }));
   };
 
   const handleSave = async () => {
-    if (!formValues.title.trim()) {
-      toast.error("El título del perfil es obligatorio.");
+    const validationErrors = validateForm(formValues);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setFormErrors(validationErrors);
+
+      showErrorToast("Complete correctamente todos los campos obligatorios.");
+
       return;
     }
 
@@ -186,20 +337,16 @@ const JobProfilesPageContent = () => {
           payload,
         });
 
-        toast.success("Perfil actualizado correctamente.");
+        showSuccessToast("Perfil actualizado correctamente.");
       } else {
         await createJobProfileMutation.mutateAsync(payload);
 
-        toast.success("Perfil creado correctamente.");
+        showSuccessToast("Perfil creado correctamente.");
       }
 
       handleCloseDialog();
     } catch (mutationError) {
-      toast.error(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "No se pudo guardar el perfil."
-      );
+      showErrorToast(getErrorMessage(mutationError));
     }
   };
 
@@ -214,13 +361,10 @@ const JobProfilesPageContent = () => {
 
     try {
       await deleteJobProfileMutation.mutateAsync(profile.id);
-      toast.success("Perfil eliminado correctamente.");
+
+      showSuccessToast("Perfil eliminado correctamente.");
     } catch (mutationError) {
-      toast.error(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "No se pudo eliminar el perfil."
-      );
+      showErrorToast(getErrorMessage(mutationError));
     }
   };
 
@@ -236,7 +380,7 @@ const JobProfilesPageContent = () => {
         </Typography>
       </Box>
 
-      <Stack direction="row" spacing={2}>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -248,7 +392,9 @@ const JobProfilesPageContent = () => {
         <Button
           variant="outlined"
           startIcon={<RefreshIcon />}
-          onClick={() => refetch()}
+          onClick={() => {
+            void refetch();
+          }}
           disabled={isFetching}
         >
           Consultar perfiles
@@ -261,8 +407,7 @@ const JobProfilesPageContent = () => {
 
       {isError && (
         <Alert severity="error">
-          No se pudo consultar el backend.{" "}
-          {error instanceof Error ? error.message : "Error desconocido"}
+          No se pudo consultar el backend. {getErrorMessage(error)}
         </Alert>
       )}
 
@@ -273,60 +418,253 @@ const JobProfilesPageContent = () => {
       )}
 
       {jobProfiles.length > 0 && (
-        <TableContainer component={Paper}>
-          <Table>
+        <TableContainer
+          component={Paper}
+          sx={{
+            width: "100%",
+            overflow: "hidden",
+            borderRadius: 2,
+          }}
+        >
+          <Table
+            size="small"
+            sx={{
+              width: "100%",
+              tableLayout: "fixed",
+            }}
+          >
             <TableHead>
-              <TableRow>
-                <TableCell>Título</TableCell>
-                <TableCell>Descripción</TableCell>
-                <TableCell>Habilidades requeridas</TableCell>
-                <TableCell>Tecnologías</TableCell>
-                <TableCell>Idiomas</TableCell>
-                <TableCell align="right">Acciones</TableCell>
+              <TableRow
+                sx={{
+                  backgroundColor: "grey.100",
+                }}
+              >
+                <TableCell
+                  sx={{
+                    width: "11%",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    px: 1,
+                    py: 1.5,
+                  }}
+                >
+                  Título
+                </TableCell>
+
+                <TableCell
+                  sx={{
+                    width: "17%",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    px: 1,
+                    py: 1.5,
+                  }}
+                >
+                  Descripción
+                </TableCell>
+
+                <TableCell
+                  sx={{
+                    width: "15%",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    px: 1,
+                    py: 1.5,
+                  }}
+                >
+                  Habilidades
+                </TableCell>
+
+                <TableCell
+                  sx={{
+                    width: "13%",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    px: 1,
+                    py: 1.5,
+                  }}
+                >
+                  Tecnologías
+                </TableCell>
+
+                <TableCell
+                  sx={{
+                    width: "14%",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    px: 1,
+                    py: 1.5,
+                  }}
+                >
+                  Experiencia
+                </TableCell>
+
+                <TableCell
+                  sx={{
+                    width: "14%",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    px: 1,
+                    py: 1.5,
+                  }}
+                >
+                  Educación
+                </TableCell>
+
+                <TableCell
+                  sx={{
+                    width: "9%",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    px: 1,
+                    py: 1.5,
+                  }}
+                >
+                  Idiomas
+                </TableCell>
+
+                <TableCell
+                  align="center"
+                  sx={{
+                    width: "7%",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    px: 0.5,
+                    py: 1.5,
+                  }}
+                >
+                  Acciones
+                </TableCell>
               </TableRow>
             </TableHead>
 
             <TableBody>
               {jobProfiles.map((profile) => (
-                <TableRow key={profile.id} hover>
-                  <TableCell>
-                    <Typography fontWeight={600}>{profile.title}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {profile.id}
-                    </Typography>
+                <TableRow
+                  key={profile.id}
+                  hover
+                  sx={{
+                    "&:last-child td": {
+                      borderBottom: 0,
+                    },
+                  }}
+                >
+                  <TableCell
+                    sx={{
+                      verticalAlign: "top",
+                      px: 1,
+                      py: 1.5,
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    <Tooltip title={profile.title} placement="top">
+                      <Typography
+                        fontWeight={700}
+                        sx={{
+                          fontSize: "0.82rem",
+                          lineHeight: 1.35,
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {profile.title}
+                      </Typography>
+                    </Tooltip>
                   </TableCell>
 
-                  <TableCell>
-                    {profile.description || (
-                      <Typography color="text.secondary">-</Typography>
-                    )}
+                  <TableCell
+                    sx={{
+                      verticalAlign: "top",
+                      px: 1,
+                      py: 1.5,
+                    }}
+                  >
+                    <TextTableCell value={profile.description} />
                   </TableCell>
 
-                  <TableCell>{renderChips(profile.required_skills)}</TableCell>
+                  <TableCell
+                    sx={{
+                      verticalAlign: "top",
+                      px: 1,
+                      py: 1.5,
+                    }}
+                  >
+                    {renderChips(profile.required_skills)}
+                  </TableCell>
 
-                  <TableCell>{renderChips(profile.technologies)}</TableCell>
+                  <TableCell
+                    sx={{
+                      verticalAlign: "top",
+                      px: 1,
+                      py: 1.5,
+                    }}
+                  >
+                    {renderChips(profile.technologies)}
+                  </TableCell>
 
-                  <TableCell>{renderChips(profile.languages)}</TableCell>
+                  <TableCell
+                    sx={{
+                      verticalAlign: "top",
+                      px: 1,
+                      py: 1.5,
+                    }}
+                  >
+                    <TextTableCell value={profile.experience_requirement} />
+                  </TableCell>
 
-                  <TableCell align="right">
-                    <Tooltip title="Editar perfil">
-                      <IconButton
-                        color="primary"
-                        onClick={() => handleOpenEditDialog(profile)}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
+                  <TableCell
+                    sx={{
+                      verticalAlign: "top",
+                      px: 1,
+                      py: 1.5,
+                    }}
+                  >
+                    <TextTableCell value={profile.education_requirement} />
+                  </TableCell>
 
-                    <Tooltip title="Eliminar perfil">
-                      <IconButton
-                        color="error"
-                        onClick={() => handleDelete(profile)}
-                        disabled={isDeleting}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
+                  <TableCell
+                    sx={{
+                      verticalAlign: "top",
+                      px: 1,
+                      py: 1.5,
+                    }}
+                  >
+                    {renderChips(profile.languages)}
+                  </TableCell>
+
+                  <TableCell
+                    align="center"
+                    sx={{
+                      verticalAlign: "top",
+                      px: 0.25,
+                      py: 1,
+                    }}
+                  >
+                    <Stack direction="row" justifyContent="center" spacing={0}>
+                      <Tooltip title="Editar perfil">
+                        <IconButton
+                          color="primary"
+                          size="small"
+                          onClick={() => handleOpenEditDialog(profile)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="Eliminar perfil">
+                        <span>
+                          <IconButton
+                            color="error"
+                            size="small"
+                            onClick={() => {
+                              void handleDelete(profile);
+                            }}
+                            disabled={isDeleting}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}
@@ -346,7 +684,19 @@ const JobProfilesPageContent = () => {
         </DialogTitle>
 
         <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              pt: 1,
+              mb: 2,
+            }}
+          >
+            Todos los campos son obligatorios. En habilidades, tecnologías e
+            idiomas, separe cada valor con una coma.
+          </Typography>
+
+          <Stack spacing={2}>
             <TextField
               label="Título"
               value={formValues.title}
@@ -355,6 +705,12 @@ const JobProfilesPageContent = () => {
               }
               required
               fullWidth
+              error={Boolean(formErrors.title)}
+              helperText={formErrors.title}
+              inputProps={{
+                minLength: 3,
+                maxLength: 120,
+              }}
             />
 
             <TextField
@@ -363,9 +719,19 @@ const JobProfilesPageContent = () => {
               onChange={(event) =>
                 handleChangeValue("description", event.target.value)
               }
+              required
               multiline
               minRows={3}
               fullWidth
+              error={Boolean(formErrors.description)}
+              helperText={
+                formErrors.description ??
+                "Ingrese una descripción de entre 3 y 1000 caracteres."
+              }
+              inputProps={{
+                minLength: 3,
+                maxLength: 1000,
+              }}
             />
 
             <TextField
@@ -374,8 +740,13 @@ const JobProfilesPageContent = () => {
               onChange={(event) =>
                 handleChangeValue("requiredSkills", event.target.value)
               }
-              helperText="Separar cada habilidad con coma. Ejemplo: Python, SQL, APIs REST"
+              required
               fullWidth
+              error={Boolean(formErrors.requiredSkills)}
+              helperText={
+                formErrors.requiredSkills ??
+                "Separar con coma. Ejemplo: Python, SQL, APIs REST"
+              }
             />
 
             <TextField
@@ -384,8 +755,13 @@ const JobProfilesPageContent = () => {
               onChange={(event) =>
                 handleChangeValue("technologies", event.target.value)
               }
-              helperText="Separar cada tecnología con coma. Ejemplo: Flask, React, Supabase"
+              required
               fullWidth
+              error={Boolean(formErrors.technologies)}
+              helperText={
+                formErrors.technologies ??
+                "Separar con coma. Ejemplo: Flask, React, Supabase"
+              }
             />
 
             <TextField
@@ -394,7 +770,17 @@ const JobProfilesPageContent = () => {
               onChange={(event) =>
                 handleChangeValue("experienceRequirement", event.target.value)
               }
+              required
               fullWidth
+              error={Boolean(formErrors.experienceRequirement)}
+              helperText={
+                formErrors.experienceRequirement ??
+                "Ejemplo: Dos años de experiencia en desarrollo backend."
+              }
+              inputProps={{
+                minLength: 2,
+                maxLength: 250,
+              }}
             />
 
             <TextField
@@ -403,7 +789,17 @@ const JobProfilesPageContent = () => {
               onChange={(event) =>
                 handleChangeValue("educationRequirement", event.target.value)
               }
+              required
               fullWidth
+              error={Boolean(formErrors.educationRequirement)}
+              helperText={
+                formErrors.educationRequirement ??
+                "Ejemplo: Ingeniería en Sistemas o carreras relacionadas."
+              }
+              inputProps={{
+                minLength: 2,
+                maxLength: 250,
+              }}
             />
 
             <TextField
@@ -412,8 +808,13 @@ const JobProfilesPageContent = () => {
               onChange={(event) =>
                 handleChangeValue("languages", event.target.value)
               }
-              helperText="Separar cada idioma con coma. Ejemplo: Español, Inglés"
+              required
               fullWidth
+              error={Boolean(formErrors.languages)}
+              helperText={
+                formErrors.languages ??
+                "Separar con coma. Ejemplo: Español, Inglés"
+              }
             />
           </Stack>
         </DialogContent>
@@ -423,7 +824,13 @@ const JobProfilesPageContent = () => {
             Cancelar
           </Button>
 
-          <Button variant="contained" onClick={handleSave} disabled={isSaving}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              void handleSave();
+            }}
+            disabled={isSaving}
+          >
             {isEditMode ? "Guardar cambios" : "Crear perfil"}
           </Button>
         </DialogActions>
