@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import {
   createJobProfile,
   deleteJobProfile,
@@ -8,7 +9,10 @@ import {
   getJobProfiles,
   updateJobProfile,
 } from "@/services/api/job-profiles/job-profile-service";
-import type { JobProfilePayload } from "@/services/api/types/job-profile";
+import type {
+  CreateJobProfilePayload,
+  UpdateJobProfilePayload,
+} from "@/services/api/types/job-profile";
 
 export const jobProfileQueryKeys = {
   all: ["job-profiles"] as const,
@@ -34,9 +38,14 @@ export const useCreateJobProfile = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createJobProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({
+    mutationFn: (payload: CreateJobProfilePayload) => createJobProfile(payload),
+    onSuccess: (createdProfile) => {
+      queryClient.setQueryData(
+        jobProfileQueryKeys.detail(createdProfile.id),
+        createdProfile
+      );
+
+      void queryClient.invalidateQueries({
         queryKey: jobProfileQueryKeys.all,
       });
     },
@@ -47,14 +56,24 @@ export const useUpdateJobProfile = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: JobProfilePayload }) =>
-      updateJobProfile(id, payload),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: UpdateJobProfilePayload;
+    }) => updateJobProfile(id, payload),
+    onSuccess: (updatedProfile, variables) => {
+      queryClient.setQueryData(
+        jobProfileQueryKeys.detail(variables.id),
+        updatedProfile
+      );
+
+      void queryClient.invalidateQueries({
         queryKey: jobProfileQueryKeys.all,
       });
 
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: jobProfileQueryKeys.detail(variables.id),
       });
     },
@@ -65,9 +84,13 @@ export const useDeleteJobProfile = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: deleteJobProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({
+    mutationFn: (id: string) => deleteJobProfile(id),
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({
+        queryKey: jobProfileQueryKeys.detail(id),
+      });
+
+      void queryClient.invalidateQueries({
         queryKey: jobProfileQueryKeys.all,
       });
     },
