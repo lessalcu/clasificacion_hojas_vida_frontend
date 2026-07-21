@@ -3,144 +3,188 @@
 import { useState } from "react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
+
+import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import MenuIcon from "@mui/icons-material/Menu";
+import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import AppBar from "@mui/material/AppBar";
-import AssessmentIcon from "@mui/icons-material/Assessment";
 import Box from "@mui/material/Box";
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
-import HomeIcon from "@mui/icons-material/Home";
 import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
-import MenuIcon from "@mui/icons-material/Menu";
 import Toolbar from "@mui/material/Toolbar";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
-import WorkIcon from "@mui/icons-material/Work";
 
-const drawerWidth = 270;
-
-const mainMenuItems = [
-  {
-    title: "Inicio",
-    href: "/",
-    icon: <HomeIcon />,
-  },
-  {
-    title: "Gestión de perfiles",
-    href: "/job-profiles",
-    icon: <WorkIcon />,
-  },
-];
-
-const futureMenuItems = [
-  {
-    title: "Carga de hojas de vida",
-    icon: <UploadFileIcon />,
-  },
-  {
-    title: "Resultados y reportes",
-    icon: <AssessmentIcon />,
-  },
-];
+const DRAWER_WIDTH = 270;
 
 type AppShellProps = {
   children: React.ReactNode;
 };
 
+type NavigationItem = {
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+};
+
+const navigationItems: NavigationItem[] = [
+  {
+    label: "Inicio",
+    href: "/",
+    icon: <HomeOutlinedIcon />,
+  },
+  {
+    label: "Gestión de perfiles",
+    href: "/job-profiles",
+    icon: <WorkOutlineIcon />,
+  },
+  {
+    label: "Resultados",
+    href: "/results",
+    icon: <AssessmentOutlinedIcon />,
+  },
+  {
+    label: "Reportes de ejecuciones",
+    href: "/execution-reports",
+    icon: <DescriptionOutlinedIcon />,
+  },
+];
+
 const AppShell = ({ children }: AppShellProps) => {
   const pathname = usePathname();
-  const [isDesktopDrawerOpen, setIsDesktopDrawerOpen] = useState(true);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
-  const handleToggleDrawer = () => {
-    setIsDesktopDrawerOpen((currentValue) => !currentValue);
-    setIsMobileDrawerOpen((currentValue) => !currentValue);
+  const isRouteSelected = (href: string) => {
+    if (href === "/") {
+      return pathname === "/";
+    }
+
+    return pathname.startsWith(href);
   };
 
-  const handleCloseMobileDrawer = () => {
+  const closeMobileDrawer = () => {
     setIsMobileDrawerOpen(false);
   };
 
   const drawerContent = (
-    <Box>
-      <Box
+    <Box
+      sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        backgroundColor: "#ffffff",
+      }}
+    >
+      <Toolbar
         sx={{
-          px: 2,
-          py: 2,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
+          minHeight: "72px !important",
+          px: 2.5,
         }}
       >
         <Box>
-          <Typography variant="subtitle1" fontWeight={700}>
+          <Typography
+            variant="h6"
+            fontWeight={800}
+            sx={{
+              color: "#10275b",
+              lineHeight: 1.2,
+            }}
+          >
             Clasificador CV
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             Sistema de preselección
           </Typography>
         </Box>
-
-        <Tooltip title="Cerrar menú">
-          <IconButton
-            onClick={handleToggleDrawer}
-            sx={{ display: { xs: "none", md: "inline-flex" } }}
-          >
-            <ChevronLeftIcon />
-          </IconButton>
-        </Tooltip>
-      </Box>
+      </Toolbar>
 
       <Divider />
 
-      <List>
-        {mainMenuItems.map((item) => {
-          const isSelected =
-            pathname === item.href ||
-            (item.href !== "/" && pathname.startsWith(item.href));
+      <List
+        sx={{
+          px: 1.5,
+          py: 2,
+        }}
+      >
+        {navigationItems.map((item) => {
+          const selected = isRouteSelected(item.href);
 
           return (
-            <ListItem key={item.href} disablePadding>
-              <ListItemButton
-                component={NextLink}
-                href={item.href}
-                selected={isSelected}
-                onClick={handleCloseMobileDrawer}
+            <ListItemButton
+              key={item.href}
+              component={NextLink}
+              href={item.href}
+              selected={selected}
+              onClick={closeMobileDrawer}
+              sx={{
+                minHeight: 52,
+                mb: 0.75,
+                borderRadius: 2,
+                color: selected ? "primary.main" : "text.primary",
+                "&.Mui-selected": {
+                  backgroundColor: "rgba(25, 118, 210, 0.10)",
+                },
+                "&.Mui-selected:hover": {
+                  backgroundColor: "rgba(25, 118, 210, 0.14)",
+                },
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 44,
+                  color: selected ? "primary.main" : "text.secondary",
+                }}
               >
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.title} />
-              </ListItemButton>
-            </ListItem>
+                {item.icon}
+              </ListItemIcon>
+
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{
+                  fontWeight: selected ? 700 : 500,
+                }}
+              />
+            </ListItemButton>
           );
         })}
       </List>
 
-      <Divider />
+      <Box sx={{ flexGrow: 1 }} />
 
-      <Box sx={{ px: 2, pt: 2 }}>
-        <Typography variant="caption" color="text.secondary">
-          Próximos módulos
+      <Box
+        sx={{
+          m: 2,
+          p: 2,
+          border: "1px solid",
+          borderColor: "primary.100",
+          borderRadius: 2.5,
+          backgroundColor: "rgba(25, 118, 210, 0.04)",
+        }}
+      >
+        <Typography variant="subtitle2" fontWeight={700} color="primary.main">
+          Datos protegidos
+        </Typography>
+
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{
+            display: "block",
+            mt: 0.75,
+            lineHeight: 1.6,
+          }}
+        >
+          Las hojas de vida se utilizan únicamente para el proceso de evaluación
+          y preselección.
         </Typography>
       </Box>
-
-      <List>
-        {futureMenuItems.map((item) => (
-          <ListItem key={item.title} disablePadding>
-            <ListItemButton disabled>
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.title} />
-              <Chip label="Próximo" size="small" />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
     </Box>
   );
 
@@ -148,21 +192,62 @@ const AppShell = ({ children }: AppShellProps) => {
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
       <AppBar
         position="fixed"
+        elevation={1}
         sx={{
           zIndex: (theme) => theme.zIndex.drawer + 1,
+          background: "linear-gradient(90deg, #0b5ec4 0%, #1677d2 100%)",
         }}
       >
-        <Toolbar>
-          <IconButton color="inherit" edge="start" onClick={handleToggleDrawer}>
+        <Toolbar
+          sx={{
+            minHeight: "72px !important",
+            px: {
+              xs: 1.5,
+              md: 3,
+            },
+          }}
+        >
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={() => setIsMobileDrawerOpen(true)}
+            sx={{
+              mr: 1.5,
+              display: {
+                xs: "inline-flex",
+                md: "none",
+              },
+            }}
+          >
             <MenuIcon />
           </IconButton>
 
+          <Box
+            sx={{
+              width: 38,
+              height: 38,
+              mr: 1.5,
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 2,
+              backgroundColor: "#ffffff",
+              color: "primary.main",
+              fontWeight: 900,
+            }}
+          >
+            CV
+          </Box>
+
           <Typography
             variant="h6"
-            noWrap
+            component="div"
+            fontWeight={700}
             sx={{
-              ml: 2,
-              fontWeight: 700,
+              flexGrow: 1,
+              fontSize: {
+                xs: "1rem",
+                sm: "1.25rem",
+              },
             }}
           >
             Clasificador de Hojas de Vida
@@ -170,49 +255,87 @@ const AppShell = ({ children }: AppShellProps) => {
         </Toolbar>
       </AppBar>
 
-      <Drawer
-        variant="persistent"
-        open={isDesktopDrawerOpen}
+      <Box
+        component="nav"
         sx={{
-          display: { xs: "none", md: "block" },
-          width: isDesktopDrawerOpen ? drawerWidth : 0,
-          flexShrink: 0,
-          "& .MuiDrawer-paper": {
-            width: drawerWidth,
-            boxSizing: "border-box",
-            top: "64px",
-            height: "calc(100% - 64px)",
+          width: {
+            md: DRAWER_WIDTH,
+          },
+          flexShrink: {
+            md: 0,
           },
         }}
       >
-        {drawerContent}
-      </Drawer>
+        <Drawer
+          variant="temporary"
+          open={isMobileDrawerOpen}
+          onClose={closeMobileDrawer}
+          ModalProps={{
+            keepMounted: true,
+          }}
+          sx={{
+            display: {
+              xs: "block",
+              md: "none",
+            },
+            "& .MuiDrawer-paper": {
+              width: DRAWER_WIDTH,
+            },
+          }}
+        >
+          {drawerContent}
+        </Drawer>
 
-      <Drawer
-        variant="temporary"
-        open={isMobileDrawerOpen}
-        onClose={handleCloseMobileDrawer}
-        sx={{
-          display: { xs: "block", md: "none" },
-          "& .MuiDrawer-paper": {
-            width: drawerWidth,
-            boxSizing: "border-box",
-          },
-        }}
-      >
-        {drawerContent}
-      </Drawer>
+        <Drawer
+          variant="permanent"
+          open
+          sx={{
+            display: {
+              xs: "none",
+              md: "block",
+            },
+            "& .MuiDrawer-paper": {
+              width: DRAWER_WIDTH,
+              borderRight: "1px solid #e4e9f0",
+            },
+          }}
+        >
+          {drawerContent}
+        </Drawer>
+      </Box>
 
       <Box
         component="main"
         sx={{
-          flexGrow: 1,
-          width: "100%",
-          mt: "64px",
-          p: { xs: 2, md: 3 },
+          width: {
+            xs: "100%",
+            md: `calc(100% - ${DRAWER_WIDTH}px)`,
+          },
+          minWidth: 0,
+          minHeight: "100vh",
+          backgroundColor: "#f5f7fb",
         }}
       >
-        {children}
+        <Toolbar sx={{ minHeight: "72px !important" }} />
+
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: 1600,
+            mx: "auto",
+            px: {
+              xs: 2,
+              sm: 3,
+              lg: 4,
+            },
+            py: {
+              xs: 2.5,
+              md: 3,
+            },
+          }}
+        >
+          {children}
+        </Box>
       </Box>
     </Box>
   );
