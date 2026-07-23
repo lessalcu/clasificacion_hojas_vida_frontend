@@ -1,9 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -132,7 +134,9 @@ const getCandidateInitials = (
     .split(/[\s_-]+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((word) => word.charAt(0).toUpperCase())
+    .map((word) =>
+      word.charAt(0).toUpperCase()
+    )
     .join("");
 };
 
@@ -262,7 +266,7 @@ const AttributeChips = ({
 type SummaryCardProps = {
   label: string;
   value: string | number;
-  icon: React.ReactNode;
+  icon: ReactNode;
   accentColor: string;
   accentBackground: string;
 };
@@ -334,9 +338,9 @@ const SummaryCard = ({
 };
 
 type DetailSectionProps = {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
 const DetailSection = ({
@@ -392,6 +396,22 @@ const ResultsPageContent = () => {
   const queryRunId =
     searchParams.get("runId") ?? "";
 
+  /*
+   * Impide que React Strict Mode ejecute
+   * dos veces la misma solicitud inicial.
+   */
+  const initialRequestRef = useRef<
+    string | null
+  >(null);
+
+  /*
+   * Impide solicitudes concurrentes para
+   * el mismo processing_run_id.
+   */
+  const activeRequestRef = useRef<
+    string | null
+  >(null);
+
   const [
     processingRunId,
     setProcessingRunId,
@@ -438,6 +458,16 @@ const ResultsPageContent = () => {
         return;
       }
 
+      if (
+        activeRequestRef.current ===
+        normalizedRunId
+      ) {
+        return;
+      }
+
+      activeRequestRef.current =
+        normalizedRunId;
+
       setIsLoading(true);
       setLoadError("");
 
@@ -469,6 +499,9 @@ const ResultsPageContent = () => {
           autoClose: TOAST_DURATION,
         });
       } finally {
+        activeRequestRef.current =
+          null;
+
         setIsLoading(false);
       }
     },
@@ -476,13 +509,24 @@ const ResultsPageContent = () => {
   );
 
   useEffect(() => {
-    const initialRunId =
+    const initialRunId = (
       queryRunId ||
-      getRememberedProcessingRun();
+      getRememberedProcessingRun()
+    ).trim();
 
     if (!initialRunId) {
       return;
     }
+
+    if (
+      initialRequestRef.current ===
+      initialRunId
+    ) {
+      return;
+    }
+
+    initialRequestRef.current =
+      initialRunId;
 
     setRunIdInput(initialRunId);
 
@@ -540,10 +584,26 @@ const ResultsPageContent = () => {
     );
   };
 
-  const handleCopyRunId = async () => {
-    const value =
+  const handleRefresh = () => {
+    const normalizedRunId = (
       processingRunId ||
-      runIdInput.trim();
+      runIdInput
+    ).trim();
+
+    if (!normalizedRunId) {
+      return;
+    }
+
+    void loadResults(
+      normalizedRunId
+    );
+  };
+
+  const handleCopyRunId = async () => {
+    const value = (
+      processingRunId ||
+      runIdInput
+    ).trim();
 
     if (!value) {
       toast.error(
@@ -737,6 +797,13 @@ const ResultsPageContent = () => {
                     event.target.value
                   )
                 }
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "Enter"
+                  ) {
+                    handleSearch();
+                  }
+                }}
                 size="small"
                 sx={{
                   minWidth: {
@@ -802,14 +869,13 @@ const ResultsPageContent = () => {
                 <span>
                   <IconButton
                     color="primary"
-                    onClick={() =>
-                      void loadResults(
-                        processingRunId
-                      )
+                    onClick={
+                      handleRefresh
                     }
                     disabled={
                       isLoading ||
-                      !processingRunId
+                      (!processingRunId &&
+                        !runIdInput.trim())
                     }
                     sx={{
                       border:
@@ -1209,6 +1275,7 @@ const ResultsPageContent = () => {
                                           fontSize: 17,
                                         }}
                                       />
+
                                       <span>
                                         {
                                           positionStyle.label
