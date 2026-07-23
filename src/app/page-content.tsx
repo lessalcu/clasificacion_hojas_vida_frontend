@@ -3,7 +3,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, ReactNode } from "react";
 
-import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
@@ -44,30 +43,39 @@ import Typography from "@mui/material/Typography";
 import { toast } from "react-toastify";
 
 import {
+  ProcessingStatusPanel,
+  StepStatusChip,
+} from "@/components/processing/processing-status-panel";
+import {
   uploadBatchCvs,
   uploadSingleCv,
 } from "@/services/api/cv-upload/cv-upload-service";
 import { useJobProfiles } from "@/services/api/job-profiles/use-job-profiles";
+import {
+  classifyCandidateProfiles,
+  extractCandidateSource,
+  getProcessingRanking,
+  normalizeCandidateSource,
+} from "@/services/api/processing/processing-service";
 import type {
   CvBatchUploadItem,
   CvUploadResult,
 } from "@/services/api/types/cv-upload";
+import type {
+  ClassificationResult,
+  ProcessingQueueState,
+} from "@/services/api/types/processing";
 
 const MAX_FILES = 50;
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const TOAST_DURATION = 5000;
-
-const UPLOADED_CV_HASHES_STORAGE_KEY = "uploaded_cv_sha256_history";
-
 const rankingOptions = [3, 5, 10, 20] as const;
 
 type RankingOption = (typeof rankingOptions)[number];
-
 type UploadStatus = "ready" | "uploading" | "uploaded" | "error";
 
-type CvQueueItem = {
+type CvQueueItem = ProcessingQueueState & {
   key: string;
-  fingerprint: string;
   file: File;
   status: UploadStatus;
   progress: number;
@@ -79,35 +87,23 @@ type HelpTooltipProps = {
   title: string;
 };
 
-type StepTitleProps = {
-  number: number;
-  title: string;
-  help: string;
-};
-
-type SummaryCardProps = {
-  icon: ReactNode;
-  value: string | number;
-  label: string;
-  caption: string;
-};
-
 const HelpTooltip = ({ title }: HelpTooltipProps) => (
   <Tooltip title={title} arrow placement="top" enterDelay={200}>
     <IconButton
       size="small"
       aria-label={title}
-      sx={{
-        width: 28,
-        height: 28,
-        ml: 0.25,
-        color: "text.secondary",
-      }}
+      sx={{ width: 28, height: 28, ml: 0.25, color: "text.secondary" }}
     >
       <HelpOutlineIcon sx={{ fontSize: 18 }} />
     </IconButton>
   </Tooltip>
 );
+
+type StepTitleProps = {
+  number: number;
+  title: string;
+  help: string;
+};
 
 const StepTitle = ({ number, title, help }: StepTitleProps) => (
   <Stack direction="row" spacing={1} alignItems="center">
@@ -135,15 +131,15 @@ const StepTitle = ({ number, title, help }: StepTitleProps) => (
   </Stack>
 );
 
+type SummaryCardProps = {
+  icon: ReactNode;
+  value: string | number;
+  label: string;
+  caption: string;
+};
+
 const SummaryCard = ({ icon, value, label, caption }: SummaryCardProps) => (
-  <Paper
-    variant="outlined"
-    sx={{
-      p: 2,
-      borderRadius: 3,
-      height: "100%",
-    }}
-  >
+  <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: "100%" }}>
     <Stack direction="row" spacing={1.5} alignItems="center">
       <Box
         sx={{
@@ -173,21 +169,23 @@ const SummaryCard = ({ icon, value, label, caption }: SummaryCardProps) => (
     <Typography
       variant="caption"
       color="text.secondary"
-      sx={{
-        mt: 1.25,
-        display: "block",
-      }}
+      sx={{ mt: 1.25, display: "block" }}
     >
       {caption}
     </Typography>
   </Paper>
 );
 
-const getFileKey = (file: File): string => {
-  return `${file.name}-${file.size}-${file.lastModified}`;
-};
+const createInitialProcessingState = (): ProcessingQueueState => ({
+  extractionStatus: "pending",
+  normalizationStatus: "pending",
+  classificationStatus: "pending",
+});
 
-const formatFileSize = (bytes: number): string => {
+const getFileKey = (file: File) =>
+  `${file.name}-${file.size}-${file.lastModified}`;
+
+const formatFileSize = (bytes: number) => {
   if (bytes < 1024 * 1024) {
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
@@ -195,64 +193,8 @@ const formatFileSize = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 };
 
-const getErrorMessage = (error: unknown): string => {
-  return error instanceof Error
-    ? error.message
-    : "Ocurrió un error inesperado.";
-};
-
-const calculateFileSha256 = async (file: File): Promise<string> => {
-  const fileBuffer = await file.arrayBuffer();
-
-  const hashBuffer = await window.crypto.subtle.digest("SHA-256", fileBuffer);
-
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join("");
-};
-
-const getUploadedCvHashes = (): Set<string> => {
-  if (typeof window === "undefined") {
-    return new Set();
-  }
-
-  try {
-    const storedValue = window.localStorage.getItem(
-      UPLOADED_CV_HASHES_STORAGE_KEY
-    );
-
-    if (!storedValue) {
-      return new Set();
-    }
-
-    const parsedValue: unknown = JSON.parse(storedValue);
-
-    if (!Array.isArray(parsedValue)) {
-      return new Set();
-    }
-
-    return new Set(
-      parsedValue.filter((value): value is string => typeof value === "string")
-    );
-  } catch {
-    return new Set();
-  }
-};
-
-const rememberUploadedCvHash = (fingerprint: string): void => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const storedHashes = getUploadedCvHashes();
-
-  storedHashes.add(fingerprint);
-
-  window.localStorage.setItem(
-    UPLOADED_CV_HASHES_STORAGE_KEY,
-    JSON.stringify(Array.from(storedHashes))
-  );
-};
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Ocurrió un error inesperado.";
 
 const HomePageContent = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -265,18 +207,23 @@ const HomePageContent = () => {
   } = useJobProfiles();
 
   const [selectedProfileId, setSelectedProfileId] = useState("");
-
   const [rankingLimit, setRankingLimit] = useState<RankingOption>(5);
-
   const [queue, setQueue] = useState<CvQueueItem[]>([]);
-
   const [isDragging, setIsDragging] = useState(false);
-
   const [isUploading, setIsUploading] = useState(false);
-
-  const [isCheckingFiles, setIsCheckingFiles] = useState(false);
-
   const [batchProgress, setBatchProgress] = useState(0);
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingMessage, setProcessingMessage] = useState(
+    "Selecciona un perfil y carga las hojas de vida para iniciar."
+  );
+  const [processingCompleted, setProcessingCompleted] = useState(false);
+  const [processingFailed, setProcessingFailed] = useState(false);
+  const [processingRunId, setProcessingRunId] = useState<string | null>(null);
+  const [rankingResults, setRankingResults] = useState<ClassificationResult[]>(
+    []
+  );
 
   const selectedProfile = useMemo(
     () => jobProfiles.find((profile) => profile.id === selectedProfileId),
@@ -296,158 +243,116 @@ const HomePageContent = () => {
     [queue]
   );
 
-  const canUpload = pendingItems.length > 0 && !isUploading && !isCheckingFiles;
+  const processedItems = useMemo(
+    () =>
+      queue.filter(
+        (item) =>
+          item.status === "uploaded" &&
+          item.classificationStatus === "completed"
+      ),
+    [queue]
+  );
 
-  const canStartClassification = false;
+  const canUpload = pendingItems.length > 0 && !isUploading && !isProcessing;
 
-  const addFiles = async (incomingFiles: File[]): Promise<void> => {
-    if (incomingFiles.length === 0) {
-      return;
-    }
+  const canStartClassification =
+    Boolean(selectedProfileId) &&
+    uploadedItems.length > 0 &&
+    !isUploading &&
+    !isProcessing;
 
-    setIsCheckingFiles(true);
+  const updateQueueItem = (
+    key: string,
+    changes: Partial<CvQueueItem>
+  ) => {
+    setQueue((current) =>
+      current.map((item) =>
+        item.key === key
+          ? {
+              ...item,
+              ...changes,
+            }
+          : item
+      )
+    );
+  };
 
-    try {
-      const invalidTypeFiles: string[] = [];
-      const oversizedFiles: string[] = [];
-      const repeatedSelectionFiles: string[] = [];
-      const previouslyUploadedFiles: string[] = [];
-      const acceptedItems: CvQueueItem[] = [];
+  const addFiles = (incomingFiles: File[]) => {
+    const invalidTypeFiles: string[] = [];
+    const oversizedFiles: string[] = [];
+    const validFiles: File[] = [];
 
-      const currentFingerprints = new Set(
-        queue.map((item) => item.fingerprint)
-      );
+    incomingFiles.forEach((file) => {
+      const isPdf =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf");
 
-      const uploadedFingerprints = getUploadedCvHashes();
-
-      const availableSlots = Math.max(MAX_FILES - queue.length, 0);
-
-      const filesWithinLimit = incomingFiles.slice(0, availableSlots);
-
-      if (incomingFiles.length > availableSlots) {
-        toast.warning(
-          `Solo se pueden seleccionar hasta ${MAX_FILES} archivos por carga.`,
-          {
-            autoClose: TOAST_DURATION,
-          }
-        );
-      }
-
-      for (const file of filesWithinLimit) {
-        const isPdf =
-          file.type === "application/pdf" ||
-          file.name.toLowerCase().endsWith(".pdf");
-
-        if (!isPdf) {
-          invalidTypeFiles.push(file.name);
-          continue;
-        }
-
-        if (file.size > MAX_FILE_SIZE_BYTES) {
-          oversizedFiles.push(file.name);
-          continue;
-        }
-
-        try {
-          const fingerprint = await calculateFileSha256(file);
-
-          if (
-            currentFingerprints.has(fingerprint) ||
-            acceptedItems.some((item) => item.fingerprint === fingerprint)
-          ) {
-            repeatedSelectionFiles.push(file.name);
-            continue;
-          }
-
-          if (uploadedFingerprints.has(fingerprint)) {
-            previouslyUploadedFiles.push(file.name);
-            continue;
-          }
-
-          acceptedItems.push({
-            key: getFileKey(file),
-            fingerprint,
-            file,
-            status: "ready",
-            progress: 0,
-          });
-
-          currentFingerprints.add(fingerprint);
-        } catch {
-          toast.error(`No se pudo verificar el archivo "${file.name}".`, {
-            autoClose: TOAST_DURATION,
-          });
-        }
-      }
-
-      if (invalidTypeFiles.length > 0) {
-        toast.error(
-          `Solo se permiten archivos PDF: ${invalidTypeFiles.join(", ")}`,
-          {
-            autoClose: TOAST_DURATION,
-          }
-        );
-      }
-
-      if (oversizedFiles.length > 0) {
-        toast.error(
-          `El tamaño máximo por archivo es 10 MB: ${oversizedFiles.join(", ")}`,
-          {
-            autoClose: TOAST_DURATION,
-          }
-        );
-      }
-
-      if (repeatedSelectionFiles.length > 0) {
-        toast.warning(
-          repeatedSelectionFiles.length === 1
-            ? `El archivo "${repeatedSelectionFiles[0]}" ya está seleccionado en esta carga.`
-            : `Estos archivos ya están seleccionados en esta carga: ${repeatedSelectionFiles.join(
-                ", "
-              )}`,
-          {
-            autoClose: TOAST_DURATION,
-          }
-        );
-      }
-
-      if (previouslyUploadedFiles.length > 0) {
-        toast.warning(
-          previouslyUploadedFiles.length === 1
-            ? `El archivo "${previouslyUploadedFiles[0]}" ya fue cargado anteriormente y no puede volver a subirse.`
-            : `Estos archivos ya fueron cargados anteriormente y no pueden volver a subirse: ${previouslyUploadedFiles.join(
-                ", "
-              )}`,
-          {
-            autoClose: TOAST_DURATION,
-          }
-        );
-      }
-
-      if (acceptedItems.length === 0) {
+      if (!isPdf) {
+        invalidTypeFiles.push(file.name);
         return;
       }
 
-      setQueue((currentQueue) => [...currentQueue, ...acceptedItems]);
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        oversizedFiles.push(file.name);
+        return;
+      }
 
-      toast.success(
-        acceptedItems.length === 1
-          ? "Hoja de vida lista para cargar."
-          : `${acceptedItems.length} hojas de vida listas para cargar.`,
-        {
-          autoClose: TOAST_DURATION,
-        }
+      validFiles.push(file);
+    });
+
+    if (invalidTypeFiles.length > 0) {
+      toast.error(
+        `Solo se permiten archivos PDF: ${invalidTypeFiles.join(", ")}`,
+        { autoClose: TOAST_DURATION }
       );
-    } finally {
-      setIsCheckingFiles(false);
     }
+
+    if (oversizedFiles.length > 0) {
+      toast.error(
+        `El tamaño máximo por archivo es 10 MB: ${oversizedFiles.join(", ")}`,
+        { autoClose: TOAST_DURATION }
+      );
+    }
+
+    setQueue((current) => {
+      const currentKeys = new Set(current.map((item) => item.key));
+      const availableSlots = MAX_FILES - current.length;
+
+      const accepted = validFiles
+        .filter((file) => !currentKeys.has(getFileKey(file)))
+        .slice(0, Math.max(availableSlots, 0));
+
+      if (accepted.length < validFiles.length) {
+        toast.warning(
+          `Solo se permiten hasta ${MAX_FILES} archivos por carga.`,
+          { autoClose: TOAST_DURATION }
+        );
+      }
+
+      return [
+        ...current,
+        ...accepted.map((file) => ({
+          key: getFileKey(file),
+          file,
+          status: "ready" as const,
+          progress: 0,
+          ...createInitialProcessingState(),
+        })),
+      ];
+    });
+
+    setProcessingCompleted(false);
+    setProcessingFailed(false);
+    setProcessingProgress(0);
+    setProcessingMessage(
+      "Selecciona un perfil y carga las hojas de vida para iniciar."
+    );
+    setProcessingRunId(null);
+    setRankingResults([]);
   };
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files ?? []);
-
-    void addFiles(selectedFiles);
-
+    addFiles(Array.from(event.target.files ?? []));
     event.target.value = "";
   };
 
@@ -455,15 +360,13 @@ const HomePageContent = () => {
     event.preventDefault();
     setIsDragging(false);
 
-    if (isUploading || isCheckingFiles) {
-      return;
+    if (!isUploading && !isProcessing) {
+      addFiles(Array.from(event.dataTransfer.files ?? []));
     }
-
-    void addFiles(Array.from(event.dataTransfer.files ?? []));
   };
 
   const removeItem = (key: string) => {
-    if (isUploading) {
+    if (isUploading || isProcessing) {
       return;
     }
 
@@ -471,8 +374,16 @@ const HomePageContent = () => {
   };
 
   const clearQueue = () => {
-    if (!isUploading) {
+    if (!isUploading && !isProcessing) {
       setQueue([]);
+      setProcessingCompleted(false);
+      setProcessingFailed(false);
+      setProcessingProgress(0);
+      setProcessingRunId(null);
+      setRankingResults([]);
+      setProcessingMessage(
+        "Selecciona un perfil y carga las hojas de vida para iniciar."
+      );
     }
   };
 
@@ -481,12 +392,7 @@ const HomePageContent = () => {
 
     setQueue((current) =>
       current.map((item) =>
-        item.status === "uploading"
-          ? {
-              ...item,
-              progress,
-            }
-          : item
+        item.status === "uploading" ? { ...item, progress } : item
       )
     );
   };
@@ -501,6 +407,7 @@ const HomePageContent = () => {
               progress: 100,
               result,
               error: undefined,
+              ...createInitialProcessingState(),
             }
           : item
       )
@@ -511,18 +418,6 @@ const HomePageContent = () => {
     itemsToUpload: CvQueueItem[],
     results: CvBatchUploadItem[]
   ) => {
-    results.forEach((uploadResult, index) => {
-      if (!uploadResult?.success) {
-        return;
-      }
-
-      const uploadedItem = itemsToUpload[index];
-
-      if (uploadedItem) {
-        rememberUploadedCvHash(uploadedItem.fingerprint);
-      }
-    });
-
     setQueue((current) =>
       current.map((item) => {
         const index = itemsToUpload.findIndex(
@@ -551,6 +446,7 @@ const HomePageContent = () => {
             progress: 100,
             result: uploadResult.result,
             error: undefined,
+            ...createInitialProcessingState(),
           };
         }
 
@@ -570,12 +466,7 @@ const HomePageContent = () => {
     setQueue((current) =>
       current.map((item) =>
         keys.has(item.key)
-          ? {
-              ...item,
-              status: "error",
-              progress: 0,
-              error: message,
-            }
+          ? { ...item, status: "error", progress: 0, error: message }
           : item
       )
     );
@@ -590,7 +481,6 @@ const HomePageContent = () => {
       toast.info("No existen archivos pendientes de carga.", {
         autoClose: TOAST_DURATION,
       });
-
       return;
     }
 
@@ -600,12 +490,7 @@ const HomePageContent = () => {
     setQueue((current) =>
       current.map((item) =>
         itemsToUpload.some((candidate) => candidate.key === item.key)
-          ? {
-              ...item,
-              status: "uploading",
-              progress: 0,
-              error: undefined,
-            }
+          ? { ...item, status: "uploading", progress: 0, error: undefined }
           : item
       )
     );
@@ -613,10 +498,8 @@ const HomePageContent = () => {
     try {
       if (itemsToUpload.length === 1) {
         const item = itemsToUpload[0];
-
         const result = await uploadSingleCv(item.file, updatePendingProgress);
 
-        rememberUploadedCvHash(item.fingerprint);
         applySingleResult(item.key, result);
 
         toast.success(`Se cargó correctamente ${item.file.name}.`, {
@@ -631,7 +514,6 @@ const HomePageContent = () => {
         applyBatchResults(itemsToUpload, results);
 
         const successful = results.filter((item) => item.success).length;
-
         const failed = results.length - successful;
 
         if (successful > 0) {
@@ -639,9 +521,7 @@ const HomePageContent = () => {
             `${successful} hoja${successful === 1 ? "" : "s"} de vida cargada${
               successful === 1 ? "" : "s"
             } correctamente.`,
-            {
-              autoClose: TOAST_DURATION,
-            }
+            { autoClose: TOAST_DURATION }
           );
         }
 
@@ -650,29 +530,293 @@ const HomePageContent = () => {
             `${failed} archivo${failed === 1 ? "" : "s"} no pudo${
               failed === 1 ? "" : "ieron"
             } cargarse. Revisa el detalle en la lista.`,
-            {
-              autoClose: TOAST_DURATION,
-            }
+            { autoClose: TOAST_DURATION }
           );
         }
       }
     } catch (error) {
       const message = getErrorMessage(error);
-
       markUploadFailure(itemsToUpload, message);
-
-      toast.error(message, {
-        autoClose: TOAST_DURATION,
-      });
+      toast.error(message, { autoClose: TOAST_DURATION });
     } finally {
       setIsUploading(false);
       setBatchProgress(0);
     }
   };
 
+  const handleStartProcessing = async () => {
+    if (!selectedProfileId) {
+      toast.error("Selecciona un perfil del puesto.", {
+        autoClose: TOAST_DURATION,
+      });
+      return;
+    }
+
+    const itemsToProcess = queue.filter(
+      (item) => item.status === "uploaded" && item.result
+    );
+
+    if (itemsToProcess.length === 0) {
+      toast.error("Carga al menos una hoja de vida antes de procesar.", {
+        autoClose: TOAST_DURATION,
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessingCompleted(false);
+    setProcessingFailed(false);
+    setProcessingRunId(null);
+    setRankingResults([]);
+    setProcessingProgress(0);
+
+    setQueue((current) =>
+      current.map((item) =>
+        item.status === "uploaded"
+          ? {
+              ...item,
+              ...createInitialProcessingState(),
+              processingError: undefined,
+              candidateProfileId: undefined,
+              rankPosition: undefined,
+              predictedLabel: undefined,
+              score: undefined,
+            }
+          : item
+      )
+    );
+
+    const totalSteps = itemsToProcess.length * 2 + 1;
+    let completedSteps = 0;
+    const normalizedItems: Array<{
+      key: string;
+      candidateProfileId: string;
+    }> = [];
+    let failedFiles = 0;
+
+    const updateGeneralProgress = () => {
+      setProcessingProgress(
+        Math.min(100, Math.round((completedSteps / totalSteps) * 100))
+      );
+    };
+
+    try {
+      for (let index = 0; index < itemsToProcess.length; index += 1) {
+        const item = itemsToProcess[index];
+        const sourceId = item.result?.candidate_source.id;
+
+        if (!sourceId) {
+          failedFiles += 1;
+          updateQueueItem(item.key, {
+            extractionStatus: "failed",
+            normalizationStatus: "failed",
+            classificationStatus: "failed",
+            processingError: "No se encontró el ID de la fuente PDF.",
+          });
+          continue;
+        }
+
+        setProcessingMessage(
+          `Extrayendo texto de ${item.file.name} (${index + 1} de ${
+            itemsToProcess.length
+          })`
+        );
+        updateQueueItem(item.key, {
+          extractionStatus: "processing",
+        });
+
+        try {
+          const extraction = await extractCandidateSource(sourceId);
+
+          if (extraction.status !== "processed") {
+            throw new Error(
+              extraction.reason || "No se pudo extraer texto útil del PDF."
+            );
+          }
+
+          updateQueueItem(item.key, {
+            extractionStatus: "completed",
+          });
+          completedSteps += 1;
+          updateGeneralProgress();
+
+          setProcessingMessage(
+            `Normalizando perfil de ${item.file.name} (${index + 1} de ${
+              itemsToProcess.length
+            })`
+          );
+          updateQueueItem(item.key, {
+            normalizationStatus: "processing",
+          });
+
+          const normalization = await normalizeCandidateSource(sourceId);
+          const candidateProfileId = normalization.candidate_profile.id;
+
+          if (!candidateProfileId) {
+            throw new Error(
+              "El backend no devolvió el identificador del perfil normalizado."
+            );
+          }
+
+          normalizedItems.push({
+            key: item.key,
+            candidateProfileId,
+          });
+
+          updateQueueItem(item.key, {
+            normalizationStatus: "completed",
+            candidateProfileId,
+          });
+          completedSteps += 1;
+          updateGeneralProgress();
+        } catch (error) {
+          failedFiles += 1;
+          const message = getErrorMessage(error);
+
+          updateQueueItem(item.key, {
+            extractionStatus:
+              item.extractionStatus === "processing"
+                ? "failed"
+                : item.extractionStatus,
+            normalizationStatus: "failed",
+            classificationStatus: "failed",
+            processingError: message,
+          });
+        }
+      }
+
+      if (normalizedItems.length === 0) {
+        throw new Error(
+          "Ninguna hoja de vida pudo completar la extracción y normalización."
+        );
+      }
+
+      setProcessingMessage(
+        `Clasificando ${normalizedItems.length} candidato${
+          normalizedItems.length === 1 ? "" : "s"
+        } y generando el Top ${rankingLimit}.`
+      );
+
+      setQueue((current) =>
+        current.map((item) =>
+          normalizedItems.some((normalized) => normalized.key === item.key)
+            ? {
+                ...item,
+                classificationStatus: "processing",
+              }
+            : item
+        )
+      );
+
+      const classification = await classifyCandidateProfiles({
+        jobProfileId: selectedProfileId,
+        candidateProfileIds: normalizedItems.map(
+          (item) => item.candidateProfileId
+        ),
+        topK: rankingLimit,
+      });
+
+      let finalResults = classification.results;
+
+      if (classification.processing_run_id) {
+        setProcessingRunId(classification.processing_run_id);
+
+        const ranking = await getProcessingRanking(
+          classification.processing_run_id,
+          rankingLimit
+        );
+
+        finalResults = ranking.results;
+      }
+
+      setRankingResults(finalResults);
+
+      const resultMap = new Map(
+        finalResults.map((result) => [result.candidate_profile_id, result])
+      );
+
+      setQueue((current) =>
+        current.map((item) => {
+          const normalized = normalizedItems.find(
+            (candidate) => candidate.key === item.key
+          );
+
+          if (!normalized) {
+            return item;
+          }
+
+          const result = resultMap.get(normalized.candidateProfileId);
+
+          return {
+            ...item,
+            classificationStatus: "completed",
+            rankPosition: result?.rank_position,
+            predictedLabel: result?.predicted_label,
+            score: result?.score_0_100,
+            processingError: result?.error || undefined,
+          };
+        })
+      );
+
+      completedSteps += 1;
+      updateGeneralProgress();
+      setProcessingProgress(100);
+
+      if (failedFiles > 0) {
+        setProcessingMessage(
+          `Proceso completado con observaciones: ${normalizedItems.length} hoja${
+            normalizedItems.length === 1 ? "" : "s"
+          } procesada${normalizedItems.length === 1 ? "" : "s"} y ${failedFiles} fallida${
+            failedFiles === 1 ? "" : "s"
+          }.`
+        );
+
+        toast.warning(
+          `La clasificación terminó, pero ${failedFiles} archivo${
+            failedFiles === 1 ? "" : "s"
+          } no pudo${failedFiles === 1 ? "" : "ieron"} procesarse.`,
+          { autoClose: TOAST_DURATION }
+        );
+      } else {
+        setProcessingMessage(
+          `Proceso completado correctamente. Ranking Top ${rankingLimit} generado.`
+        );
+
+        toast.success(
+          `Proceso completado correctamente. Se generó el ranking Top ${rankingLimit}.`,
+          { autoClose: TOAST_DURATION }
+        );
+      }
+
+      setProcessingCompleted(true);
+    } catch (error) {
+      const message = getErrorMessage(error);
+
+      setProcessingFailed(true);
+      setProcessingMessage(`El proceso falló: ${message}`);
+
+      setQueue((current) =>
+        current.map((item) =>
+          item.classificationStatus === "processing"
+            ? {
+                ...item,
+                classificationStatus: "failed",
+                processingError: message,
+              }
+            : item
+        )
+      );
+
+      toast.error(message, {
+        autoClose: TOAST_DURATION,
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleOpenPdf = (file: File) => {
     const url = URL.createObjectURL(file);
-
     const opened = window.open(url, "_blank", "noopener,noreferrer");
 
     if (!opened) {
@@ -708,13 +852,7 @@ const HomePageContent = () => {
 
   return (
     <Stack spacing={2.5}>
-      <Paper
-        variant="outlined"
-        sx={{
-          p: 2.5,
-          borderRadius: 3,
-        }}
-      >
+      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <ManageSearchOutlinedIcon color="primary" />
 
@@ -722,7 +860,7 @@ const HomePageContent = () => {
             Evaluación y clasificación de hojas de vida
           </Typography>
 
-          <HelpTooltip title="Selecciona un perfil, carga los PDF, configura el ranking y posteriormente ejecuta la clasificación." />
+          <HelpTooltip title="Selecciona un perfil, carga los PDF, configura el ranking y ejecuta el flujo de extracción, normalización y clasificación." />
         </Stack>
 
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
@@ -731,13 +869,7 @@ const HomePageContent = () => {
         </Typography>
       </Paper>
 
-      <Paper
-        variant="outlined"
-        sx={{
-          p: 2.5,
-          borderRadius: 3,
-        }}
-      >
+      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
         {isLoadingProfiles && <LinearProgress sx={{ mb: 2 }} />}
 
         {isProfilesError && (
@@ -750,27 +882,21 @@ const HomePageContent = () => {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              lg: "0.9fr 1.35fr 0.75fr",
-            },
-            gap: {
-              xs: 3,
-              lg: 0,
-            },
+            gridTemplateColumns: { xs: "1fr", lg: "0.9fr 1.35fr 0.75fr" },
+            gap: { xs: 3, lg: 0 },
           }}
         >
           <Box sx={{ pr: { lg: 3 } }}>
             <StepTitle
               number={1}
               title="Selecciona el perfil del puesto"
-              help="Este perfil será usado posteriormente para comparar y clasificar los candidatos."
+              help="Este perfil se utilizará para comparar, clasificar y ordenar los candidatos."
             />
 
             <FormControl
               fullWidth
               sx={{ mt: 2.5 }}
-              disabled={jobProfiles.length === 0}
+              disabled={jobProfiles.length === 0 || isProcessing}
             >
               <InputLabel id="job-profile-label">Perfil del puesto</InputLabel>
 
@@ -778,7 +904,13 @@ const HomePageContent = () => {
                 labelId="job-profile-label"
                 value={selectedProfileId}
                 label="Perfil del puesto"
-                onChange={(event) => setSelectedProfileId(event.target.value)}
+                onChange={(event) => {
+                  setSelectedProfileId(event.target.value);
+                  setProcessingCompleted(false);
+                  setProcessingFailed(false);
+                  setRankingResults([]);
+                  setProcessingRunId(null);
+                }}
                 startAdornment={
                   <WorkOutlineIcon color="primary" sx={{ mr: 1.5 }} />
                 }
@@ -794,9 +926,7 @@ const HomePageContent = () => {
             {selectedProfile && (
               <Alert severity="info" sx={{ mt: 2 }}>
                 <strong>{selectedProfile.title}</strong>
-
                 <br />
-
                 {selectedProfile.description}
               </Alert>
             )}
@@ -804,15 +934,9 @@ const HomePageContent = () => {
 
           <Box
             sx={{
-              px: {
-                lg: 3,
-              },
-              borderLeft: {
-                lg: "1px solid #e4e9f0",
-              },
-              borderRight: {
-                lg: "1px solid #e4e9f0",
-              },
+              px: { lg: 3 },
+              borderLeft: { lg: "1px solid #e4e9f0" },
+              borderRight: { lg: "1px solid #e4e9f0" },
             }}
           >
             <StepTitle
@@ -824,15 +948,15 @@ const HomePageContent = () => {
             <Box
               role="button"
               tabIndex={0}
-              onClick={() => {
-                if (!isUploading && !isCheckingFiles) {
-                  fileInputRef.current?.click();
-                }
-              }}
+              onClick={() =>
+                !isUploading &&
+                !isProcessing &&
+                fileInputRef.current?.click()
+              }
               onKeyDown={(event) => {
                 if (
                   !isUploading &&
-                  !isCheckingFiles &&
+                  !isProcessing &&
                   (event.key === "Enter" || event.key === " ")
                 ) {
                   fileInputRef.current?.click();
@@ -840,8 +964,7 @@ const HomePageContent = () => {
               }}
               onDragOver={(event) => {
                 event.preventDefault();
-
-                if (!isUploading && !isCheckingFiles) {
+                if (!isUploading && !isProcessing) {
                   setIsDragging(true);
                 }
               }}
@@ -857,14 +980,14 @@ const HomePageContent = () => {
                 placeItems: "center",
                 textAlign: "center",
                 cursor:
-                  isUploading || isCheckingFiles ? "not-allowed" : "pointer",
+                  isUploading || isProcessing ? "not-allowed" : "pointer",
                 border: "2px dashed",
                 borderColor: isDragging ? "primary.main" : "#a9c9f5",
                 borderRadius: 3,
                 backgroundColor: isDragging
                   ? "rgba(25,118,210,.07)"
                   : "#fbfdff",
-                opacity: isUploading || isCheckingFiles ? 0.7 : 1,
+                opacity: isUploading || isProcessing ? 0.7 : 1,
               }}
             >
               <Stack spacing={1} alignItems="center" sx={{ p: 2 }}>
@@ -874,9 +997,7 @@ const HomePageContent = () => {
                 />
 
                 <Typography fontWeight={800} color="primary.main">
-                  {isCheckingFiles
-                    ? "Verificando archivos..."
-                    : "Arrastra y suelta tus archivos PDF aquí"}
+                  Arrastra y suelta tus archivos PDF aquí
                 </Typography>
 
                 <Typography variant="body2" color="primary.main">
@@ -898,14 +1019,9 @@ const HomePageContent = () => {
               onChange={handleInputChange}
             />
 
-            {isCheckingFiles && <LinearProgress sx={{ mt: 1.5 }} />}
-
             {queue.length > 0 && (
               <Stack
-                direction={{
-                  xs: "column",
-                  sm: "row",
-                }}
+                direction={{ xs: "column", sm: "row" }}
                 spacing={1.5}
                 sx={{ mt: 2 }}
               >
@@ -921,7 +1037,7 @@ const HomePageContent = () => {
                 <Button
                   color="error"
                   onClick={clearQueue}
-                  disabled={isUploading || isCheckingFiles}
+                  disabled={isUploading || isProcessing}
                 >
                   Quitar todos
                 </Button>
@@ -954,7 +1070,7 @@ const HomePageContent = () => {
               help="Selecciona si deseas mostrar el Top 3, Top 5, Top 10 o Top 20."
             />
 
-            <FormControl fullWidth sx={{ mt: 2.5 }}>
+            <FormControl fullWidth sx={{ mt: 2.5 }} disabled={isProcessing}>
               <InputLabel id="ranking-label">Mostrar resultados</InputLabel>
 
               <Select
@@ -977,8 +1093,8 @@ const HomePageContent = () => {
             </FormControl>
 
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              La clasificación se habilitará cuando los PDF hayan sido cargados
-              y se conecten los endpoints de extracción e inferencia.
+              El sistema procesará los PDF cargados y ordenará los candidatos
+              de mayor a menor score.
             </Typography>
           </Box>
         </Box>
@@ -990,19 +1106,15 @@ const HomePageContent = () => {
           sx={{
             p: 2,
             borderRadius: 3,
-            backgroundColor: "#fafbfc",
+            backgroundColor: canStartClassification
+              ? "rgba(46,125,50,.04)"
+              : "#fafbfc",
           }}
         >
           <Stack
-            direction={{
-              xs: "column",
-              sm: "row",
-            }}
+            direction={{ xs: "column", sm: "row" }}
             spacing={2}
-            alignItems={{
-              xs: "stretch",
-              sm: "center",
-            }}
+            alignItems={{ xs: "stretch", sm: "center" }}
             justifyContent="space-between"
           >
             <Box>
@@ -1016,15 +1128,24 @@ const HomePageContent = () => {
               </Typography>
             </Box>
 
-            <Tooltip title="Disponible en el siguiente ticket: extracción, normalización y clasificación.">
+            <Tooltip
+              title={
+                canStartClassification
+                  ? "Ejecutar extracción, normalización, clasificación y ranking."
+                  : "Selecciona un perfil y carga al menos una hoja de vida."
+              }
+            >
               <span>
                 <Button
                   variant="contained"
                   color="success"
                   startIcon={<PlayArrowRoundedIcon />}
+                  onClick={() => void handleStartProcessing()}
                   disabled={!canStartClassification}
                 >
-                  Iniciar clasificación
+                  {isProcessing
+                    ? "Procesando..."
+                    : "Iniciar clasificación"}
                 </Button>
               </span>
             </Tooltip>
@@ -1032,24 +1153,25 @@ const HomePageContent = () => {
         </Paper>
       </Paper>
 
-      <Paper
-        variant="outlined"
-        sx={{
-          borderRadius: 3,
-          overflow: "hidden",
-        }}
-      >
-        <Box
-          sx={{
-            p: 2.5,
-            borderBottom: "1px solid #e4e9f0",
-          }}
-        >
+      {(uploadedItems.length > 0 ||
+        isProcessing ||
+        processingCompleted ||
+        processingFailed) && (
+        <ProcessingStatusPanel
+          isProcessing={isProcessing}
+          progress={processingProgress}
+          currentMessage={processingMessage}
+          completed={processingCompleted}
+          failed={processingFailed}
+          totalFiles={uploadedItems.length}
+          processedFiles={processedItems.length}
+        />
+      )}
+
+      <Paper variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
+        <Box sx={{ p: 2.5, borderBottom: "1px solid #e4e9f0" }}>
           <Stack
-            direction={{
-              xs: "column",
-              sm: "row",
-            }}
+            direction={{ xs: "column", sm: "row" }}
             justifyContent="space-between"
             spacing={1}
           >
@@ -1059,9 +1181,15 @@ const HomePageContent = () => {
               </Typography>
 
               <Typography variant="body2" color="text.secondary">
-                Los archivos cargados correctamente quedan registrados como
-                candidatos y fuentes PDF en el backend.
+                Consulta el estado de carga, extracción, normalización y
+                clasificación de cada PDF.
               </Typography>
+
+              {processingRunId && (
+                <Typography variant="caption" color="text.secondary">
+                  Ejecución: {processingRunId}
+                </Typography>
+              )}
             </Box>
 
             <Chip label={`${uploadedItems.length} cargadas`} color="primary" />
@@ -1080,10 +1208,7 @@ const HomePageContent = () => {
           >
             <Stack spacing={1.5} alignItems="center">
               <DescriptionOutlinedIcon
-                sx={{
-                  fontSize: 56,
-                  color: "text.disabled",
-                }}
+                sx={{ fontSize: 56, color: "text.disabled" }}
               />
 
               <Typography fontWeight={700}>
@@ -1097,18 +1222,16 @@ const HomePageContent = () => {
           </Box>
         ) : (
           <TableContainer sx={{ overflowX: "auto" }}>
-            <Table sx={{ minWidth: 1050 }}>
+            <Table sx={{ minWidth: 1450 }}>
               <TableHead>
-                <TableRow
-                  sx={{
-                    backgroundColor: "#f6f8fb",
-                  }}
-                >
+                <TableRow sx={{ backgroundColor: "#f6f8fb" }}>
                   <TableCell>Archivo</TableCell>
-                  <TableCell align="center">Progreso</TableCell>
-                  <TableCell align="center">Estado de carga</TableCell>
-                  <TableCell>Registro backend</TableCell>
+                  <TableCell align="center">Carga</TableCell>
+                  <TableCell align="center">Extracción</TableCell>
+                  <TableCell align="center">Normalización</TableCell>
                   <TableCell align="center">Clasificación</TableCell>
+                  <TableCell align="center">Posición</TableCell>
+                  <TableCell align="center">Resultado</TableCell>
                   <TableCell align="center">Score</TableCell>
                   <TableCell align="right">Acciones</TableCell>
                 </TableRow>
@@ -1117,7 +1240,7 @@ const HomePageContent = () => {
               <TableBody>
                 {queue.map((item) => (
                   <TableRow key={item.key} hover>
-                    <TableCell>
+                    <TableCell sx={{ minWidth: 270 }}>
                       <Stack direction="row" spacing={1.25} alignItems="center">
                         <PictureAsPdfOutlinedIcon color="error" />
 
@@ -1130,71 +1253,82 @@ const HomePageContent = () => {
                             {formatFileSize(item.file.size)}
                           </Typography>
 
-                          {item.error && (
+                          {(item.error || item.processingError) && (
                             <Typography
                               variant="caption"
                               color="error"
-                              sx={{
-                                display: "block",
-                              }}
+                              sx={{ display: "block", maxWidth: 300 }}
                             >
-                              {item.error}
+                              {item.error || item.processingError}
                             </Typography>
                           )}
                         </Box>
                       </Stack>
                     </TableCell>
 
-                    <TableCell align="center" sx={{ minWidth: 150 }}>
-                      <LinearProgress
-                        variant="determinate"
-                        value={item.progress}
-                        color={item.status === "error" ? "error" : "primary"}
-                      />
+                    <TableCell align="center">
+                      <Stack spacing={0.5} sx={{ minWidth: 120 }}>
+                        {renderUploadStatus(item)}
 
-                      <Typography variant="caption">
-                        {item.progress}%
-                      </Typography>
+                        {item.status === "uploading" && (
+                          <LinearProgress
+                            variant="determinate"
+                            value={item.progress}
+                          />
+                        )}
+                      </Stack>
                     </TableCell>
 
                     <TableCell align="center">
-                      {renderUploadStatus(item)}
+                      <StepStatusChip status={item.extractionStatus} />
                     </TableCell>
 
-                    <TableCell>
-                      {item.result ? (
-                        <Stack spacing={0.25}>
-                          <Typography variant="caption" fontWeight={700}>
-                            Candidato: {item.result.candidate.id}
-                          </Typography>
+                    <TableCell align="center">
+                      <StepStatusChip status={item.normalizationStatus} />
+                    </TableCell>
 
-                          <Typography variant="caption" color="text.secondary">
-                            Fuente: {item.result.candidate_source.id}
-                          </Typography>
+                    <TableCell align="center">
+                      <StepStatusChip status={item.classificationStatus} />
+                    </TableCell>
 
-                          <Typography variant="caption" color="text.secondary">
-                            Extracción:{" "}
-                            {item.result.candidate_source.extraction_status}
-                          </Typography>
-                        </Stack>
+                    <TableCell align="center">
+                      {item.rankPosition ? (
+                        <Chip
+                          label={`#${item.rankPosition}`}
+                          color="primary"
+                          size="small"
+                        />
                       ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          Pendiente
-                        </Typography>
+                        <Typography color="text.secondary">--</Typography>
                       )}
                     </TableCell>
 
                     <TableCell align="center">
-                      <Chip label="Pendiente" size="small" disabled />
+                      {item.classificationStatus === "completed" &&
+                      item.predictedLabel !== undefined ? (
+                        <Chip
+                          label={item.predictedLabel ? "Apto" : "No apto"}
+                          size="small"
+                          color={item.predictedLabel ? "success" : "default"}
+                        />
+                      ) : (
+                        <Typography color="text.secondary">--</Typography>
+                      )}
                     </TableCell>
 
                     <TableCell align="center">
-                      <Skeleton
-                        variant="rounded"
-                        width={64}
-                        height={28}
-                        sx={{ mx: "auto" }}
-                      />
+                      {typeof item.score === "number" ? (
+                        <Typography fontWeight={800} color="primary.main">
+                          {item.score.toFixed(2)}
+                        </Typography>
+                      ) : (
+                        <Skeleton
+                          variant="rounded"
+                          width={64}
+                          height={28}
+                          sx={{ mx: "auto" }}
+                        />
+                      )}
                     </TableCell>
 
                     <TableCell align="right">
@@ -1218,7 +1352,11 @@ const HomePageContent = () => {
                           <IconButton
                             color="error"
                             onClick={() => removeItem(item.key)}
-                            disabled={isUploading || item.status === "uploaded"}
+                            disabled={
+                              isUploading ||
+                              isProcessing ||
+                              item.status === "uploaded"
+                            }
                           >
                             <DeleteOutlineIcon />
                           </IconButton>
@@ -1232,6 +1370,79 @@ const HomePageContent = () => {
           </TableContainer>
         )}
       </Paper>
+
+      {rankingResults.length > 0 && (
+        <Paper variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
+          <Box sx={{ p: 2.5, borderBottom: "1px solid #e4e9f0" }}>
+            <Typography variant="h6" fontWeight={800} color="#10275b">
+              Ranking Top {rankingLimit}
+            </Typography>
+
+            <Typography variant="body2" color="text.secondary">
+              Candidatos ordenados de mayor a menor score de afinidad.
+            </Typography>
+          </Box>
+
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ backgroundColor: "#f6f8fb" }}>
+                  <TableCell align="center">Posición</TableCell>
+                  <TableCell>Perfil del candidato</TableCell>
+                  <TableCell align="center">Clasificación</TableCell>
+                  <TableCell align="center">Score</TableCell>
+                  <TableCell>Modelo</TableCell>
+                </TableRow>
+              </TableHead>
+
+              <TableBody>
+                {rankingResults.map((result) => (
+                  <TableRow key={result.candidate_profile_id} hover>
+                    <TableCell align="center">
+                      <Chip
+                        label={`#${result.rank_position ?? "--"}`}
+                        color="primary"
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={700}>
+                        {result.candidate_profile_id}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell align="center">
+                      <Chip
+                        label={result.predicted_label ? "Apto" : "No apto"}
+                        color={result.predicted_label ? "success" : "default"}
+                        size="small"
+                      />
+                    </TableCell>
+
+                    <TableCell align="center">
+                      <Typography fontWeight={800} color="primary.main">
+                        {Number(result.score_0_100 ?? 0).toFixed(2)}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography variant="body2">
+                        {result.algorithm ?? "Modelo activo"}
+                      </Typography>
+
+                      {result.version_tag && (
+                        <Typography variant="caption" color="text.secondary">
+                          {result.version_tag}
+                        </Typography>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
 
       <Box>
         <Typography
@@ -1271,30 +1482,46 @@ const HomePageContent = () => {
 
           <SummaryCard
             icon={<ErrorOutlineIcon />}
-            value={queue.filter((item) => item.status === "error").length}
-            label="Errores de carga"
-            caption="Archivos que requieren reintento"
+            value={
+              queue.filter(
+                (item) =>
+                  item.status === "error" ||
+                  item.extractionStatus === "failed" ||
+                  item.normalizationStatus === "failed" ||
+                  item.classificationStatus === "failed"
+              ).length
+            }
+            label="Errores del proceso"
+            caption="Archivos que requieren revisión"
           />
 
           <SummaryCard
             icon={<ManageSearchOutlinedIcon />}
-            value="0"
+            value={processedItems.length}
             label="Procesados"
-            caption="Pendiente de extracción y normalización"
+            caption="Extracción, normalización y clasificación completadas"
           />
 
           <SummaryCard
             icon={<AssessmentOutlinedIcon />}
-            value="--"
+            value={
+              rankingResults.length > 0
+                ? Math.max(
+                    ...rankingResults.map((result) =>
+                      Number(result.score_0_100 ?? 0)
+                    )
+                  ).toFixed(2)
+                : "--"
+            }
             label="Mejor score"
-            caption="Disponible después de la clasificación"
+            caption="Mayor afinidad obtenida"
           />
 
           <SummaryCard
             icon={<QueryBuilderOutlinedIcon />}
-            value="-- seg"
-            label="Tiempo promedio"
-            caption="Disponible después del procesamiento"
+            value={processingCompleted ? "100 %" : `${processingProgress} %`}
+            label="Avance general"
+            caption="Estado actual del procesamiento"
           />
         </Box>
       </Box>

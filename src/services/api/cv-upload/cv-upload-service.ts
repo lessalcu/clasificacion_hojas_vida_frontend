@@ -7,9 +7,18 @@ import type {
 } from "@/services/api/types/cv-upload";
 import { env } from "@/services/env";
 
-const buildUrl = (path: string) => {
+const buildUrl = (path: string | undefined): string => {
+  if (!path) {
+    throw new Error(
+      "No se configuró correctamente el endpoint para cargar hojas de vida."
+    );
+  }
+
   const baseUrl = env.apiBaseUrl.replace(/\/$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  const normalizedPath = path.startsWith("/")
+    ? path
+    : `/${path}`;
 
   return `${baseUrl}${normalizedPath}`;
 };
