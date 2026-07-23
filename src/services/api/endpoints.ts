@@ -67,4 +67,11 @@ export const endpoints = {
     `/inference/processing-runs/${encodeURIComponent(
       processingRunId
     )}/results`,
+
+  processingRunTrace: (
+    processingRunId: string
+  ) =>
+    `/reports/processing-runs/${encodeURIComponent(
+      processingRunId
+    )}/trace`,
 } as const;
