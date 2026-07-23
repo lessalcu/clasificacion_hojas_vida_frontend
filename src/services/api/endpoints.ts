@@ -4,38 +4,67 @@ export const endpoints = {
   jobProfileById: (id: string) =>
     `/job-profiles/${encodeURIComponent(id)}`,
 
-  /*
-   * Endpoints de carga.
-   *
-   * Se conservan varios alias para no dañar el servicio de carga
-   * que ya estaba funcionando antes de CHV-27.
-   */
   uploadCandidate: "/candidates/upload",
-  uploadCandidatesBatch: "/candidates/upload-batch",
+
+  uploadCandidatesBatch:
+    "/candidates/upload-batch",
 
   uploadSingleCv: "/candidates/upload",
-  uploadBatchCvs: "/candidates/upload-batch",
+
+  uploadBatchCvs:
+    "/candidates/upload-batch",
 
   candidateUpload: "/candidates/upload",
-  candidateBatchUpload: "/candidates/upload-batch",
 
-  /*
-   * Procesamiento CHV-27.
-   */
-  extractCandidateSource: (sourceId: string) =>
-    `/candidate-sources/${encodeURIComponent(sourceId)}/extract-text`,
+  candidateBatchUpload:
+    "/candidates/upload-batch",
 
-  normalizeCandidateSource: (sourceId: string) =>
-    `/candidate-sources/${encodeURIComponent(sourceId)}/normalize-profile`,
+  extractCandidateSource: (
+    sourceId: string
+  ) =>
+    `/candidate-sources/${encodeURIComponent(
+      sourceId
+    )}/extract-text`,
 
-  candidateProfileBySource: (sourceId: string) =>
-    `/candidate-sources/${encodeURIComponent(sourceId)}/profile`,
+  normalizeCandidateSource: (
+    sourceId: string
+  ) =>
+    `/candidate-sources/${encodeURIComponent(
+      sourceId
+    )}/normalize-profile`,
 
-  classifyCandidateProfiles: (jobProfileId: string) =>
-    `/inference/job-profiles/${encodeURIComponent(jobProfileId)}/batch`,
+  candidateProfileBySource: (
+    sourceId: string
+  ) =>
+    `/candidate-sources/${encodeURIComponent(
+      sourceId
+    )}/profile`,
 
-  processingRunRanking: (processingRunId: string) =>
+  candidateSourceFile: (
+    sourceId: string
+  ) =>
+    `/candidate-sources/${encodeURIComponent(
+      sourceId
+    )}/file`,
+
+  classifyCandidateProfiles: (
+    jobProfileId: string
+  ) =>
+    `/inference/job-profiles/${encodeURIComponent(
+      jobProfileId
+    )}/batch`,
+
+  processingRunRanking: (
+    processingRunId: string
+  ) =>
     `/inference/processing-runs/${encodeURIComponent(
       processingRunId
     )}/ranking`,
+
+  processingRunResults: (
+    processingRunId: string
+  ) =>
+    `/inference/processing-runs/${encodeURIComponent(
+      processingRunId
+    )}/results`,
 } as const;
