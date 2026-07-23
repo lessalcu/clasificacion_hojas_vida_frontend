@@ -9,36 +9,73 @@ import { env } from "@/services/env";
 export const LAST_PROCESSING_RUN_STORAGE_KEY =
   "last_processing_run_id";
 
-export const getProcessingRunResults = async (
+const inFlightResultRequests = new Map<
+  string,
+  Promise<ProcessingRunResultData>
+>();
+
+export const getProcessingRunResults = (
   processingRunId: string,
   limit?: number
 ): Promise<ProcessingRunResultData> => {
-  const response =
-    await apiClient<ProcessingRunResultResponse>(
+  const normalizedProcessingRunId =
+    processingRunId.trim();
+
+  if (!normalizedProcessingRunId) {
+    return Promise.reject(
+      new Error(
+        "El identificador de la ejecución es obligatorio."
+      )
+    );
+  }
+
+  const requestKey = `${normalizedProcessingRunId}:${
+    limit ?? "all"
+  }`;
+
+  const currentRequest =
+    inFlightResultRequests.get(requestKey);
+
+  if (currentRequest) {
+    return currentRequest;
+  }
+
+  const request =
+    apiClient<ProcessingRunResultResponse>(
       endpoints.processingRunResults(
-        processingRunId
+        normalizedProcessingRunId
       ),
       {
         queryParams: {
           limit,
         },
       }
-    );
+    )
+      .then((response) => response.data)
+      .finally(() => {
+        inFlightResultRequests.delete(
+          requestKey
+        );
+      });
 
-  return response.data;
+  inFlightResultRequests.set(
+    requestKey,
+    request
+  );
+
+  return request;
 };
 
 const buildAbsoluteUrl = (
   path: string
 ): string => {
-  const baseUrl = env.apiBaseUrl.replace(
-    /\/$/,
-    ""
-  );
+  const baseUrl =
+    env.apiBaseUrl.replace(/\/$/, "");
 
-  const normalizedPath = path.startsWith("/")
-    ? path
-    : `/${path}`;
+  const normalizedPath =
+    path.startsWith("/")
+      ? path
+      : `/${path}`;
 
   return `${baseUrl}${normalizedPath}`;
 };
