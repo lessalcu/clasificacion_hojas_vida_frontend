@@ -46,7 +46,7 @@ En caso de problemas de red durante la instalación, ejecutar:
 yarn install --network-timeout 600000
 ```
 
-## 3. Ejecutar en modo desarrollo
+## 3. Ejecutar proyecto
 
 ```powershell
 npm run dev
@@ -66,55 +66,16 @@ Consultar el archivo `example.env.local` para conocer las variables requeridas.
 
 ## Rutas principales
 
-| Ruta            | Descripción                   |
-| --------------- | ----------------------------- |
-| `/`             | Pantalla de bienvenida        |
-| `/job-profiles` | Gestión de perfiles de puesto |
-
-## Comandos disponibles
-
-### Ejecutar el proyecto
-
-```powershell
-npm run dev
-```
-
-### Compilar para producción
-
-```powershell
-npm run build
-```
-
-### Ejecutar versión compilada
-
-```powershell
-npm run start
-```
-
-### Revisar TypeScript
-
-```powershell
-npm run type-check
-```
-
-### Ejecutar ESLint
-
-```powershell
-npm run lint
-```
-
-### Formatear archivos
-
-```powershell
-npm run format
-```
+| Ruta | Descripción            |
+| ---- | ---------------------- |
+| `/`  | Pantalla de bienvenida |
 
 ## Ejecución desde PowerShell
 
 Desde PowerShell, ubicarse en la carpeta del proyecto:
 
 ```powershell
-cd C:\Tesis\clasificacion_hojas_vida_frontend
+cd C:\Ubicacion\clasificacion_hojas_vida_frontend
 ```
 
 Instalar dependencias:
@@ -134,13 +95,3 @@ Abrir el frontend:
 ```txt
 http://localhost:3000
 ```
-
-## Consideraciones
-
-- La instalación de dependencias se realiza con `yarn install`.
-- La ejecución del proyecto se realiza con `npm run dev`.
-- No se usa autenticación.
-- No se usa configuración de idiomas.
-- El idioma por defecto de la interfaz es español.
-- La conexión al backend se configura desde `.env.local`.
-- Las variables sensibles o privadas no deben subirse al repositorio.
