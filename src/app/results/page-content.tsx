@@ -1,17 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
@@ -71,26 +62,18 @@ const CARD_BORDER_COLOR = "#e2e8f0";
 const PRIMARY_DARK = "#0f2f66";
 const PAGE_BACKGROUND = "#f5f7fb";
 
-const getErrorMessage = (
-  error: unknown
-): string => {
+const getErrorMessage = (error: unknown): string => {
   return error instanceof Error
     ? error.message
     : "No se pudieron consultar los resultados.";
 };
 
-const getAttributeLabel = (
-  item: CandidateAttributeItem | string
-): string => {
+const getAttributeLabel = (item: CandidateAttributeItem | string): string => {
   if (typeof item === "string") {
     return item.trim();
   }
 
-  const name =
-    item.name ??
-    item.display ??
-    item.canonical ??
-    "";
+  const name = item.name ?? item.display ?? item.canonical ?? "";
 
   if (!name.trim()) {
     return "";
@@ -103,9 +86,7 @@ const getAttributeLabel = (
   return name;
 };
 
-const getRelevantMatches = (
-  result: EnrichedCandidateResult
-): string[] => {
+const getRelevantMatches = (result: EnrichedCandidateResult): string[] => {
   return Array.from(
     new Set([
       ...(result.relevant_matches.skills ?? []),
@@ -115,9 +96,7 @@ const getRelevantMatches = (
   );
 };
 
-const getCandidateName = (
-  result: EnrichedCandidateResult
-): string => {
+const getCandidateName = (result: EnrichedCandidateResult): string => {
   return (
     result.candidate_profile?.pseudonym_code ||
     result.candidate_source?.original_filename ||
@@ -125,54 +104,42 @@ const getCandidateName = (
   );
 };
 
-const getCandidateInitials = (
-  result: EnrichedCandidateResult
-): string => {
+const getCandidateInitials = (result: EnrichedCandidateResult): string => {
   const value = getCandidateName(result);
 
   return value
     .split(/[\s_-]+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((word) =>
-      word.charAt(0).toUpperCase()
-    )
+    .map((word) => word.charAt(0).toUpperCase())
     .join("");
 };
 
-const getPositionStyle = (
-  position?: number | null
-) => {
+const getPositionStyle = (position?: number | null) => {
   if (position === 1) {
     return {
       label: "1",
-      background:
-        "linear-gradient(135deg, #f5b700 0%, #ffd966 100%)",
+      background: "linear-gradient(135deg, #f5b700 0%, #ffd966 100%)",
       color: "#5f4500",
-      boxShadow:
-        "0 5px 14px rgba(245, 183, 0, 0.30)",
+      boxShadow: "0 5px 14px rgba(245, 183, 0, 0.30)",
     };
   }
 
   if (position === 2) {
     return {
       label: "2",
-      background:
-        "linear-gradient(135deg, #a8b2c1 0%, #dce2ea 100%)",
+      background: "linear-gradient(135deg, #a8b2c1 0%, #dce2ea 100%)",
       color: "#344054",
-      boxShadow:
-        "0 5px 14px rgba(120, 135, 155, 0.25)",
+      boxShadow: "0 5px 14px rgba(120, 135, 155, 0.25)",
     };
   }
 
   if (position === 3) {
     return {
       label: "3",
-      background:
-        "linear-gradient(135deg, #b87333 0%, #dba36d 100%)",
+      background: "linear-gradient(135deg, #b87333 0%, #dba36d 100%)",
       color: "#ffffff",
-      boxShadow:
-        "0 5px 14px rgba(184, 115, 51, 0.28)",
+      boxShadow: "0 5px 14px rgba(184, 115, 51, 0.28)",
     };
   }
 
@@ -184,9 +151,7 @@ const getPositionStyle = (
   };
 };
 
-const getScoreTone = (
-  score: number
-) => {
+const getScoreTone = (score: number) => {
   if (score >= 80) {
     return {
       color: "#16803c",
@@ -208,9 +173,7 @@ const getScoreTone = (
 };
 
 type AttributeChipsProps = {
-  items: Array<
-    CandidateAttributeItem | string
-  >;
+  items: Array<CandidateAttributeItem | string>;
   emptyText?: string;
 };
 
@@ -219,31 +182,19 @@ const AttributeChips = ({
   emptyText = "No identificado",
 }: AttributeChipsProps) => {
   const labels = Array.from(
-    new Set(
-      items
-        .map(getAttributeLabel)
-        .filter(Boolean)
-    )
+    new Set(items.map(getAttributeLabel).filter(Boolean))
   );
 
   if (labels.length === 0) {
     return (
-      <Typography
-        variant="body2"
-        color="text.secondary"
-      >
+      <Typography variant="body2" color="text.secondary">
         {emptyText}
       </Typography>
     );
   }
 
   return (
-    <Stack
-      direction="row"
-      spacing={0.75}
-      useFlexGap
-      flexWrap="wrap"
-    >
+    <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
       {labels.map((label) => (
         <Chip
           key={label}
@@ -286,20 +237,14 @@ const SummaryCard = ({
         borderRadius: 3,
         borderColor: CARD_BORDER_COLOR,
         backgroundColor: "#ffffff",
-        transition:
-          "transform 160ms ease, box-shadow 160ms ease",
+        transition: "transform 160ms ease, box-shadow 160ms ease",
         "&:hover": {
           transform: "translateY(-2px)",
-          boxShadow:
-            "0 10px 26px rgba(15, 47, 102, 0.08)",
+          boxShadow: "0 10px 26px rgba(15, 47, 102, 0.08)",
         },
       }}
     >
-      <Stack
-        direction="row"
-        spacing={1.5}
-        alignItems="center"
-      >
+      <Stack direction="row" spacing={1.5} alignItems="center">
         <Avatar
           sx={{
             width: 48,
@@ -343,11 +288,7 @@ type DetailSectionProps = {
   children: ReactNode;
 };
 
-const DetailSection = ({
-  icon,
-  title,
-  children,
-}: DetailSectionProps) => {
+const DetailSection = ({ icon, title, children }: DetailSectionProps) => {
   return (
     <Box
       sx={{
@@ -375,11 +316,7 @@ const DetailSection = ({
           {icon}
         </Box>
 
-        <Typography
-          variant="subtitle2"
-          fontWeight={900}
-          color={PRIMARY_DARK}
-        >
+        <Typography variant="subtitle2" fontWeight={900} color={PRIMARY_DARK}>
           {title}
         </Typography>
       </Stack>
@@ -393,311 +330,179 @@ const ResultsPageContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const queryRunId =
-    searchParams.get("runId") ?? "";
+  const queryRunId = searchParams.get("runId") ?? "";
 
-  /*
-   * Impide que React Strict Mode ejecute
-   * dos veces la misma solicitud inicial.
-   */
-  const initialRequestRef = useRef<
-    string | null
-  >(null);
+  const initialRequestRef = useRef<string | null>(null);
 
-  /*
-   * Impide solicitudes concurrentes para
-   * el mismo processing_run_id.
-   */
-  const activeRequestRef = useRef<
-    string | null
-  >(null);
+  const activeRequestRef = useRef<string | null>(null);
 
-  const [
-    processingRunId,
-    setProcessingRunId,
-  ] = useState("");
+  const [processingRunId, setProcessingRunId] = useState("");
 
-  const [
-    runIdInput,
-    setRunIdInput,
-  ] = useState("");
+  const [runIdInput, setRunIdInput] = useState("");
 
-  const [
-    data,
-    setData,
-  ] = useState<
-    ProcessingRunResultData | null
-  >(null);
+  const [data, setData] = useState<ProcessingRunResultData | null>(null);
 
-  const [
-    selectedResult,
-    setSelectedResult,
-  ] = useState<
-    EnrichedCandidateResult | null
-  >(null);
+  const [selectedResult, setSelectedResult] =
+    useState<EnrichedCandidateResult | null>(null);
 
-  const [
-    isLoading,
-    setIsLoading,
-  ] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [
-    loadError,
-    setLoadError,
-  ] = useState("");
+  const [loadError, setLoadError] = useState("");
 
-  const loadResults = useCallback(
-    async (
-      runId: string
-    ): Promise<void> => {
-      const normalizedRunId =
-        runId.trim();
+  const loadResults = useCallback(async (runId: string): Promise<void> => {
+    const normalizedRunId = runId.trim();
 
-      if (!normalizedRunId) {
-        setData(null);
-        return;
-      }
+    if (!normalizedRunId) {
+      setData(null);
+      return;
+    }
 
-      if (
-        activeRequestRef.current ===
-        normalizedRunId
-      ) {
-        return;
-      }
+    if (activeRequestRef.current === normalizedRunId) {
+      return;
+    }
 
-      activeRequestRef.current =
-        normalizedRunId;
+    activeRequestRef.current = normalizedRunId;
 
-      setIsLoading(true);
-      setLoadError("");
+    setIsLoading(true);
+    setLoadError("");
 
-      try {
-        const response =
-          await getProcessingRunResults(
-            normalizedRunId
-          );
+    try {
+      const response = await getProcessingRunResults(normalizedRunId);
 
-        setData(response);
-        setProcessingRunId(
-          normalizedRunId
-        );
-        setRunIdInput(
-          normalizedRunId
-        );
+      setData(response);
+      setProcessingRunId(normalizedRunId);
+      setRunIdInput(normalizedRunId);
 
-        rememberLastProcessingRun(
-          normalizedRunId
-        );
-      } catch (error) {
-        const message =
-          getErrorMessage(error);
+      rememberLastProcessingRun(normalizedRunId);
+    } catch (error) {
+      const message = getErrorMessage(error);
 
-        setData(null);
-        setLoadError(message);
+      setData(null);
+      setLoadError(message);
 
-        toast.error(message, {
-          autoClose: TOAST_DURATION,
-        });
-      } finally {
-        activeRequestRef.current =
-          null;
+      toast.error(message, {
+        autoClose: TOAST_DURATION,
+      });
+    } finally {
+      activeRequestRef.current = null;
 
-        setIsLoading(false);
-      }
-    },
-    []
-  );
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const initialRunId = (
-      queryRunId ||
-      getRememberedProcessingRun()
-    ).trim();
+    const initialRunId = (queryRunId || getRememberedProcessingRun()).trim();
 
     if (!initialRunId) {
       return;
     }
 
-    if (
-      initialRequestRef.current ===
-      initialRunId
-    ) {
+    if (initialRequestRef.current === initialRunId) {
       return;
     }
 
-    initialRequestRef.current =
-      initialRunId;
+    initialRequestRef.current = initialRunId;
 
     setRunIdInput(initialRunId);
 
     void loadResults(initialRunId);
-  }, [
-    loadResults,
-    queryRunId,
-  ]);
+  }, [loadResults, queryRunId]);
 
-  const orderedResults = useMemo(
-    () => {
-      return [
-        ...(data?.results ?? []),
-      ].sort(
-        (
-          first,
-          second
-        ) =>
-          Number(
-            first.rank_position ??
-              9999
-          ) -
-          Number(
-            second.rank_position ??
-              9999
-          )
-      );
-    },
-    [data]
-  );
+  const orderedResults = useMemo(() => {
+    return [...(data?.results ?? [])].sort(
+      (first, second) =>
+        Number(first.rank_position ?? 9999) -
+        Number(second.rank_position ?? 9999)
+    );
+  }, [data]);
 
   const handleSearch = () => {
-    const normalizedRunId =
-      runIdInput.trim();
+    const normalizedRunId = runIdInput.trim();
 
     if (!normalizedRunId) {
-      toast.error(
-        "Ingresa el identificador de una ejecución.",
-        {
-          autoClose: TOAST_DURATION,
-        }
-      );
+      toast.error("Ingresa el identificador de una ejecución.", {
+        autoClose: TOAST_DURATION,
+      });
 
       return;
     }
 
-    router.replace(
-      `/results?runId=${encodeURIComponent(
-        normalizedRunId
-      )}`
-    );
+    router.replace(`/results?runId=${encodeURIComponent(normalizedRunId)}`);
 
-    void loadResults(
-      normalizedRunId
-    );
+    void loadResults(normalizedRunId);
   };
 
   const handleRefresh = () => {
-    const normalizedRunId = (
-      processingRunId ||
-      runIdInput
-    ).trim();
+    const normalizedRunId = (processingRunId || runIdInput).trim();
 
     if (!normalizedRunId) {
       return;
     }
 
-    void loadResults(
-      normalizedRunId
-    );
+    void loadResults(normalizedRunId);
   };
 
   const handleCopyRunId = async () => {
-    const value = (
-      processingRunId ||
-      runIdInput
-    ).trim();
+    const value = (processingRunId || runIdInput).trim();
 
     if (!value) {
-      toast.error(
-        "No existe un identificador para copiar.",
-        {
-          autoClose: TOAST_DURATION,
-        }
-      );
+      toast.error("No existe un identificador para copiar.", {
+        autoClose: TOAST_DURATION,
+      });
 
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(
-        value
-      );
+      await navigator.clipboard.writeText(value);
 
-      toast.success(
-        "Identificador copiado.",
-        {
-          autoClose: 2500,
-        }
-      );
+      toast.success("Identificador copiado.", {
+        autoClose: 2500,
+      });
     } catch {
-      toast.error(
-        "No se pudo copiar el identificador.",
-        {
-          autoClose: TOAST_DURATION,
-        }
-      );
+      toast.error("No se pudo copiar el identificador.", {
+        autoClose: TOAST_DURATION,
+      });
     }
   };
 
-  const handleOpenPdf = (
-    result: EnrichedCandidateResult
-  ) => {
-    const sourceId =
-      result.candidate_source?.id;
+  const handleOpenPdf = (result: EnrichedCandidateResult) => {
+    const sourceId = result.candidate_source?.id;
 
     if (!sourceId) {
-      toast.error(
-        "El resultado no tiene un PDF asociado.",
-        {
-          autoClose: TOAST_DURATION,
-        }
-      );
+      toast.error("El resultado no tiene un PDF asociado.", {
+        autoClose: TOAST_DURATION,
+      });
 
       return;
     }
 
     window.open(
-      getCandidatePdfUrl(
-        sourceId,
-        false
-      ),
+      getCandidatePdfUrl(sourceId, false),
       "_blank",
       "noopener,noreferrer"
     );
   };
 
-  const handleDownloadPdf = (
-    result: EnrichedCandidateResult
-  ) => {
-    const sourceId =
-      result.candidate_source?.id;
+  const handleDownloadPdf = (result: EnrichedCandidateResult) => {
+    const sourceId = result.candidate_source?.id;
 
     if (!sourceId) {
-      toast.error(
-        "El resultado no tiene un PDF asociado.",
-        {
-          autoClose: TOAST_DURATION,
-        }
-      );
+      toast.error("El resultado no tiene un PDF asociado.", {
+        autoClose: TOAST_DURATION,
+      });
 
       return;
     }
 
-    const anchor =
-      document.createElement("a");
+    const anchor = document.createElement("a");
 
-    anchor.href =
-      getCandidatePdfUrl(
-        sourceId,
-        true
-      );
+    anchor.href = getCandidatePdfUrl(sourceId, true);
 
     anchor.download =
-      result.candidate_source
-        ?.original_filename ??
-      "hoja-de-vida.pdf";
+      result.candidate_source?.original_filename ?? "hoja-de-vida.pdf";
 
-    document.body.appendChild(
-      anchor
-    );
+    document.body.appendChild(anchor);
 
     anchor.click();
     anchor.remove();
@@ -720,10 +525,8 @@ const ResultsPageContent = () => {
             },
             borderRadius: 4,
             borderColor: CARD_BORDER_COLOR,
-            background:
-              "linear-gradient(135deg, #ffffff 0%, #f8fbff 100%)",
-            boxShadow:
-              "0 8px 28px rgba(15, 47, 102, 0.05)",
+            background: "linear-gradient(135deg, #ffffff 0%, #f8fbff 100%)",
+            boxShadow: "0 8px 28px rgba(15, 47, 102, 0.05)",
           }}
         >
           <Stack
@@ -738,11 +541,7 @@ const ResultsPageContent = () => {
             }}
             justifyContent="space-between"
           >
-            <Stack
-              direction="row"
-              spacing={1.5}
-              alignItems="center"
-            >
+            <Stack direction="row" spacing={1.5} alignItems="center">
               <Avatar
                 sx={{
                   width: 54,
@@ -755,11 +554,7 @@ const ResultsPageContent = () => {
               </Avatar>
 
               <Box>
-                <Typography
-                  variant="h4"
-                  fontWeight={900}
-                  color={PRIMARY_DARK}
-                >
+                <Typography variant="h4" fontWeight={900} color={PRIMARY_DARK}>
                   Resultados y ranking
                 </Typography>
 
@@ -770,10 +565,8 @@ const ResultsPageContent = () => {
                     mt: 0.5,
                   }}
                 >
-                  Revisa la clasificación,
-                  el nivel de afinidad y
-                  la información relevante
-                  de cada candidato.
+                  Revisa la clasificación, el nivel de afinidad y la información
+                  relevante de cada candidato.
                 </Typography>
               </Box>
             </Stack>
@@ -792,15 +585,9 @@ const ResultsPageContent = () => {
               <TextField
                 label="ID de ejecución"
                 value={runIdInput}
-                onChange={(event) =>
-                  setRunIdInput(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => setRunIdInput(event.target.value)}
                 onKeyDown={(event) => {
-                  if (
-                    event.key === "Enter"
-                  ) {
+                  if (event.key === "Enter") {
                     handleSearch();
                   }
                 }}
@@ -809,12 +596,10 @@ const ResultsPageContent = () => {
                   minWidth: {
                     sm: 345,
                   },
-                  "& .MuiOutlinedInput-root":
-                    {
-                      borderRadius: 2.5,
-                      backgroundColor:
-                        "#ffffff",
-                    },
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 2.5,
+                    backgroundColor: "#ffffff",
+                  },
                 }}
               />
 
@@ -822,10 +607,7 @@ const ResultsPageContent = () => {
                 variant="contained"
                 startIcon={
                   isLoading ? (
-                    <CircularProgress
-                      size={18}
-                      color="inherit"
-                    />
+                    <CircularProgress size={18} color="inherit" />
                   ) : (
                     <PersonSearchOutlinedIcon />
                   )
@@ -846,18 +628,11 @@ const ResultsPageContent = () => {
                 <span>
                   <IconButton
                     color="primary"
-                    onClick={() =>
-                      void handleCopyRunId()
-                    }
-                    disabled={
-                      !processingRunId &&
-                      !runIdInput.trim()
-                    }
+                    onClick={() => void handleCopyRunId()}
+                    disabled={!processingRunId && !runIdInput.trim()}
                     sx={{
-                      border:
-                        "1px solid #d8e3ef",
-                      backgroundColor:
-                        "#ffffff",
+                      border: "1px solid #d8e3ef",
+                      backgroundColor: "#ffffff",
                     }}
                   >
                     <ContentCopyOutlinedIcon />
@@ -869,19 +644,13 @@ const ResultsPageContent = () => {
                 <span>
                   <IconButton
                     color="primary"
-                    onClick={
-                      handleRefresh
-                    }
+                    onClick={handleRefresh}
                     disabled={
-                      isLoading ||
-                      (!processingRunId &&
-                        !runIdInput.trim())
+                      isLoading || (!processingRunId && !runIdInput.trim())
                     }
                     sx={{
-                      border:
-                        "1px solid #d8e3ef",
-                      backgroundColor:
-                        "#ffffff",
+                      border: "1px solid #d8e3ef",
+                      backgroundColor: "#ffffff",
                     }}
                   >
                     <RefreshIcon />
@@ -912,62 +681,49 @@ const ResultsPageContent = () => {
           </Alert>
         )}
 
-        {!isLoading &&
-          !loadError &&
-          !data && (
-            <Paper
-              variant="outlined"
+        {!isLoading && !loadError && !data && (
+          <Paper
+            variant="outlined"
+            sx={{
+              py: 7,
+              px: 3,
+              borderRadius: 4,
+              borderColor: CARD_BORDER_COLOR,
+              textAlign: "center",
+              backgroundColor: "#ffffff",
+            }}
+          >
+            <Avatar
               sx={{
-                py: 7,
-                px: 3,
-                borderRadius: 4,
-                borderColor:
-                  CARD_BORDER_COLOR,
-                textAlign: "center",
-                backgroundColor:
-                  "#ffffff",
+                width: 68,
+                height: 68,
+                mx: "auto",
+                mb: 2,
+                backgroundColor: "#eaf3ff",
+                color: "primary.main",
               }}
             >
-              <Avatar
-                sx={{
-                  width: 68,
-                  height: 68,
-                  mx: "auto",
-                  mb: 2,
-                  backgroundColor:
-                    "#eaf3ff",
-                  color: "primary.main",
-                }}
-              >
-                <PersonSearchOutlinedIcon
-                  fontSize="large"
-                />
-              </Avatar>
+              <PersonSearchOutlinedIcon fontSize="large" />
+            </Avatar>
 
-              <Typography
-                variant="h6"
-                fontWeight={900}
-                color={PRIMARY_DARK}
-              >
-                Aún no hay resultados para mostrar
-              </Typography>
+            <Typography variant="h6" fontWeight={900} color={PRIMARY_DARK}>
+              Aún no hay resultados para mostrar
+            </Typography>
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{
-                  mt: 1,
-                  maxWidth: 540,
-                  mx: "auto",
-                }}
-              >
-                Ejecuta una clasificación
-                desde Inicio o ingresa
-                el identificador de una
-                ejecución ya procesada.
-              </Typography>
-            </Paper>
-          )}
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                mt: 1,
+                maxWidth: 540,
+                mx: "auto",
+              }}
+            >
+              Ejecuta una clasificación desde Inicio o ingresa el identificador
+              de una ejecución ya procesada.
+            </Typography>
+          </Paper>
+        )}
 
         {data && (
           <>
@@ -976,12 +732,8 @@ const ResultsPageContent = () => {
                 display: "grid",
                 gridTemplateColumns: {
                   xs: "1fr",
-                  sm: (
-                    "repeat(2, minmax(0, 1fr))"
-                  ),
-                  xl: (
-                    "repeat(4, minmax(0, 1fr))"
-                  ),
+                  sm: "repeat(2, minmax(0, 1fr))",
+                  xl: "repeat(4, minmax(0, 1fr))",
                 },
                 gap: 1.5,
               }}
@@ -996,37 +748,24 @@ const ResultsPageContent = () => {
 
               <SummaryCard
                 label="Clasificados como aptos"
-                value={
-                  data.summary
-                    .recommended_count
-                }
-                icon={
-                  <EmojiEventsOutlinedIcon />
-                }
+                value={data.summary.recommended_count}
+                icon={<EmojiEventsOutlinedIcon />}
                 accentColor="#18864b"
                 accentBackground="#eaf8f0"
               />
 
               <SummaryCard
                 label="Mejor score"
-                value={data.summary
-                  .max_score_0_100
-                  .toFixed(2)}
-                icon={
-                  <AssessmentOutlinedIcon />
-                }
+                value={data.summary.max_score_0_100.toFixed(2)}
+                icon={<AssessmentOutlinedIcon />}
                 accentColor="#7a4bc3"
                 accentBackground="#f1ebfc"
               />
 
               <SummaryCard
                 label="Score promedio"
-                value={data.summary
-                  .average_score_0_100
-                  .toFixed(2)}
-                icon={
-                  <TerminalOutlinedIcon />
-                }
+                value={data.summary.average_score_0_100.toFixed(2)}
+                icon={<TerminalOutlinedIcon />}
                 accentColor="#a15c00"
                 accentBackground="#fff4df"
               />
@@ -1041,11 +780,7 @@ const ResultsPageContent = () => {
             >
               Resultados cargados para{" "}
               <strong>
-                {
-                  data.job_profile
-                    ?.title ??
-                  "el perfil seleccionado"
-                }
+                {data.job_profile?.title ?? "el perfil seleccionado"}
               </strong>
               .
             </Alert>
@@ -1055,12 +790,9 @@ const ResultsPageContent = () => {
               sx={{
                 borderRadius: 4,
                 overflow: "hidden",
-                borderColor:
-                  CARD_BORDER_COLOR,
-                backgroundColor:
-                  "#ffffff",
-                boxShadow:
-                  "0 8px 28px rgba(15, 47, 102, 0.05)",
+                borderColor: CARD_BORDER_COLOR,
+                backgroundColor: "#ffffff",
+                boxShadow: "0 8px 28px rgba(15, 47, 102, 0.05)",
               }}
             >
               <Box
@@ -1069,15 +801,13 @@ const ResultsPageContent = () => {
                     xs: 2,
                     md: 2.75,
                   },
-                  borderBottom:
-                    "1px solid #e7edf4",
+                  borderBottom: "1px solid #e7edf4",
                   display: "flex",
                   flexDirection: {
                     xs: "column",
                     sm: "row",
                   },
-                  justifyContent:
-                    "space-between",
+                  justifyContent: "space-between",
                   gap: 1,
                 }}
               >
@@ -1090,20 +820,14 @@ const ResultsPageContent = () => {
                     Ranking de candidatos
                   </Typography>
 
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                  >
-                    Ordenado de mayor a
-                    menor score de afinidad.
+                  <Typography variant="body2" color="text.secondary">
+                    Ordenado de mayor a menor score de afinidad.
                   </Typography>
                 </Box>
 
                 <Chip
                   label={`${data.total_results} candidato${
-                    data.total_results === 1
-                      ? ""
-                      : "s"
+                    data.total_results === 1 ? "" : "s"
                   }`}
                   color="primary"
                   variant="outlined"
@@ -1117,12 +841,10 @@ const ResultsPageContent = () => {
                 />
               </Box>
 
-              {orderedResults.length ===
-              0 ? (
+              {orderedResults.length === 0 ? (
                 <Box sx={{ p: 4 }}>
                   <Alert severity="warning">
-                    La ejecución no contiene
-                    resultados.
+                    La ejecución no contiene resultados.
                   </Alert>
                 </Box>
               ) : (
@@ -1139,16 +861,14 @@ const ResultsPageContent = () => {
                     <TableHead>
                       <TableRow
                         sx={{
-                          backgroundColor:
-                            "#f6f8fb",
+                          backgroundColor: "#f6f8fb",
                         }}
                       >
                         <TableCell
                           align="center"
                           sx={{
                             fontWeight: 900,
-                            color:
-                              PRIMARY_DARK,
+                            color: PRIMARY_DARK,
                           }}
                         >
                           Posición
@@ -1157,8 +877,7 @@ const ResultsPageContent = () => {
                         <TableCell
                           sx={{
                             fontWeight: 900,
-                            color:
-                              PRIMARY_DARK,
+                            color: PRIMARY_DARK,
                           }}
                         >
                           Candidato
@@ -1167,8 +886,7 @@ const ResultsPageContent = () => {
                         <TableCell
                           sx={{
                             fontWeight: 900,
-                            color:
-                              PRIMARY_DARK,
+                            color: PRIMARY_DARK,
                           }}
                         >
                           Coincidencias
@@ -1178,8 +896,7 @@ const ResultsPageContent = () => {
                           align="center"
                           sx={{
                             fontWeight: 900,
-                            color:
-                              PRIMARY_DARK,
+                            color: PRIMARY_DARK,
                           }}
                         >
                           Clasificación
@@ -1188,8 +905,7 @@ const ResultsPageContent = () => {
                         <TableCell
                           sx={{
                             fontWeight: 900,
-                            color:
-                              PRIMARY_DARK,
+                            color: PRIMARY_DARK,
                             minWidth: 190,
                           }}
                         >
@@ -1200,8 +916,7 @@ const ResultsPageContent = () => {
                           align="right"
                           sx={{
                             fontWeight: 900,
-                            color:
-                              PRIMARY_DARK,
+                            color: PRIMARY_DARK,
                           }}
                         >
                           Acciones
@@ -1210,382 +925,272 @@ const ResultsPageContent = () => {
                     </TableHead>
 
                     <TableBody>
-                      {orderedResults.map(
-                        (result) => {
-                          const matches =
-                            getRelevantMatches(
-                              result
-                            );
+                      {orderedResults.map((result) => {
+                        const matches = getRelevantMatches(result);
 
-                          const positionStyle =
-                            getPositionStyle(
-                              result.rank_position
-                            );
+                        const positionStyle = getPositionStyle(
+                          result.rank_position
+                        );
 
-                          const scoreTone =
-                            getScoreTone(
-                              result.score_0_100
-                            );
+                        const scoreTone = getScoreTone(result.score_0_100);
 
-                          return (
-                            <TableRow
-                              key={
-                                result
-                                  .classification_result_id ??
-                                result
-                                  .candidate_profile_id
-                              }
-                              hover
-                              sx={{
-                                "&:last-child td":
-                                  {
-                                    borderBottom:
-                                      0,
-                                  },
-                              }}
-                            >
-                              <TableCell
-                                align="center"
+                        return (
+                          <TableRow
+                            key={
+                              result.classification_result_id ??
+                              result.candidate_profile_id
+                            }
+                            hover
+                            sx={{
+                              "&:last-child td": {
+                                borderBottom: 0,
+                              },
+                            }}
+                          >
+                            <TableCell align="center">
+                              <Avatar
+                                sx={{
+                                  width: 42,
+                                  height: 42,
+                                  mx: "auto",
+                                  background: positionStyle.background,
+                                  color: positionStyle.color,
+                                  boxShadow: positionStyle.boxShadow,
+                                  fontWeight: 900,
+                                  fontSize: 15,
+                                }}
+                              >
+                                {result.rank_position &&
+                                result.rank_position <= 3 ? (
+                                  <Stack
+                                    direction="row"
+                                    spacing={0.25}
+                                    alignItems="center"
+                                  >
+                                    <EmojiEventsOutlinedIcon
+                                      sx={{
+                                        fontSize: 17,
+                                      }}
+                                    />
+
+                                    <span>{positionStyle.label}</span>
+                                  </Stack>
+                                ) : (
+                                  `#${positionStyle.label}`
+                                )}
+                              </Avatar>
+                            </TableCell>
+
+                            <TableCell>
+                              <Stack
+                                direction="row"
+                                spacing={1.25}
+                                alignItems="center"
                               >
                                 <Avatar
                                   sx={{
                                     width: 42,
                                     height: 42,
-                                    mx: "auto",
-                                    background:
-                                      positionStyle.background,
-                                    color:
-                                      positionStyle.color,
-                                    boxShadow:
-                                      positionStyle.boxShadow,
+                                    backgroundColor: "#eaf3ff",
+                                    color: "primary.main",
                                     fontWeight: 900,
-                                    fontSize: 15,
+                                    fontSize: 14,
                                   }}
                                 >
-                                  {result.rank_position &&
-                                  result.rank_position <=
-                                    3 ? (
-                                    <Stack
-                                      direction="row"
-                                      spacing={0.25}
-                                      alignItems="center"
-                                    >
-                                      <EmojiEventsOutlinedIcon
-                                        sx={{
-                                          fontSize: 17,
-                                        }}
-                                      />
-
-                                      <span>
-                                        {
-                                          positionStyle.label
-                                        }
-                                      </span>
-                                    </Stack>
-                                  ) : (
-                                    `#${
-                                      positionStyle.label
-                                    }`
-                                  )}
+                                  {getCandidateInitials(result)}
                                 </Avatar>
-                              </TableCell>
 
-                              <TableCell>
-                                <Stack
-                                  direction="row"
-                                  spacing={1.25}
-                                  alignItems="center"
-                                >
-                                  <Avatar
-                                    sx={{
-                                      width: 42,
-                                      height: 42,
-                                      backgroundColor:
-                                        "#eaf3ff",
-                                      color:
-                                        "primary.main",
-                                      fontWeight: 900,
-                                      fontSize: 14,
-                                    }}
-                                  >
-                                    {getCandidateInitials(
-                                      result
-                                    )}
-                                  </Avatar>
-
-                                  <Box>
-                                    <Typography
-                                      variant="body2"
-                                      fontWeight={900}
-                                      color={
-                                        PRIMARY_DARK
-                                      }
-                                    >
-                                      {getCandidateName(
-                                        result
-                                      )}
-                                    </Typography>
-
-                                    <Typography
-                                      variant="caption"
-                                      color="text.secondary"
-                                      sx={{
-                                        display:
-                                          "block",
-                                        mt: 0.25,
-                                        maxWidth: 310,
-                                        overflow:
-                                          "hidden",
-                                        textOverflow:
-                                          "ellipsis",
-                                        whiteSpace:
-                                          "nowrap",
-                                      }}
-                                    >
-                                      {result
-                                        .candidate_source
-                                        ?.original_filename ??
-                                        "Archivo no disponible"}
-                                    </Typography>
-                                  </Box>
-                                </Stack>
-                              </TableCell>
-
-                              <TableCell>
-                                {matches.length >
-                                0 ? (
-                                  <Stack
-                                    direction="row"
-                                    spacing={0.5}
-                                    useFlexGap
-                                    flexWrap="wrap"
-                                  >
-                                    {matches
-                                      .slice(0, 5)
-                                      .map(
-                                        (
-                                          match
-                                        ) => (
-                                          <Chip
-                                            key={
-                                              match
-                                            }
-                                            label={
-                                              match
-                                            }
-                                            size="small"
-                                            variant="outlined"
-                                            sx={{
-                                              borderRadius: 2,
-                                              backgroundColor:
-                                                "#f8fafc",
-                                              borderColor:
-                                                "#d8e1eb",
-                                            }}
-                                          />
-                                        )
-                                      )}
-
-                                    {matches.length >
-                                      5 && (
-                                      <Chip
-                                        label={`+${
-                                          matches.length -
-                                          5
-                                        }`}
-                                        size="small"
-                                        color="primary"
-                                        variant="outlined"
-                                      />
-                                    )}
-                                  </Stack>
-                                ) : (
+                                <Box>
                                   <Typography
                                     variant="body2"
-                                    color="text.secondary"
+                                    fontWeight={900}
+                                    color={PRIMARY_DARK}
                                   >
-                                    Sin coincidencias
-                                    directas
+                                    {getCandidateName(result)}
                                   </Typography>
-                                )}
-                              </TableCell>
 
-                              <TableCell
-                                align="center"
-                              >
-                                <Chip
-                                  label={
-                                    result
-                                      .predicted_label
-                                      ? "Apto"
-                                      : "No apto"
-                                  }
-                                  sx={{
-                                    minWidth: 86,
-                                    fontWeight: 800,
-                                    backgroundColor:
-                                      result.predicted_label
-                                        ? "#e9f8ef"
-                                        : "#fff0f0",
-                                    color:
-                                      result.predicted_label
-                                        ? "#16803c"
-                                        : "#c23b3b",
-                                  }}
-                                />
-                              </TableCell>
-
-                              <TableCell>
-                                <Stack
-                                  spacing={0.75}
-                                >
-                                  <Stack
-                                    direction="row"
-                                    justifyContent="space-between"
-                                    alignItems="center"
-                                  >
-                                    <Typography
-                                      variant="body2"
-                                      fontWeight={900}
-                                      color={
-                                        scoreTone.color
-                                      }
-                                    >
-                                      {result
-                                        .score_0_100
-                                        .toFixed(
-                                          2
-                                        )}
-                                    </Typography>
-
-                                    <Typography
-                                      variant="caption"
-                                      color="text.secondary"
-                                    >
-                                      / 100
-                                    </Typography>
-                                  </Stack>
-
-                                  <LinearProgress
-                                    variant="determinate"
-                                    value={Math.min(
-                                      Math.max(
-                                        result.score_0_100,
-                                        0
-                                      ),
-                                      100
-                                    )}
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
                                     sx={{
-                                      height: 7,
-                                      borderRadius:
-                                        10,
-                                      backgroundColor:
-                                        "#edf1f5",
-                                      "& .MuiLinearProgress-bar":
-                                        {
-                                          borderRadius:
-                                            10,
-                                          backgroundColor:
-                                            scoreTone.color,
-                                        },
+                                      display: "block",
+                                      mt: 0.25,
+                                      maxWidth: 310,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
                                     }}
-                                  />
-                                </Stack>
-                              </TableCell>
+                                  >
+                                    {result.candidate_source
+                                      ?.original_filename ??
+                                      "Archivo no disponible"}
+                                  </Typography>
+                                </Box>
+                              </Stack>
+                            </TableCell>
 
-                              <TableCell
-                                align="right"
-                              >
+                            <TableCell>
+                              {matches.length > 0 ? (
                                 <Stack
                                   direction="row"
-                                  justifyContent="flex-end"
                                   spacing={0.5}
+                                  useFlexGap
+                                  flexWrap="wrap"
                                 >
-                                  <Tooltip title="Ver detalle">
+                                  {matches.slice(0, 5).map((match) => (
+                                    <Chip
+                                      key={match}
+                                      label={match}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{
+                                        borderRadius: 2,
+                                        backgroundColor: "#f8fafc",
+                                        borderColor: "#d8e1eb",
+                                      }}
+                                    />
+                                  ))}
+
+                                  {matches.length > 5 && (
+                                    <Chip
+                                      label={`+${matches.length - 5}`}
+                                      size="small"
+                                      color="primary"
+                                      variant="outlined"
+                                    />
+                                  )}
+                                </Stack>
+                              ) : (
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
+                                >
+                                  Sin coincidencias directas
+                                </Typography>
+                              )}
+                            </TableCell>
+
+                            <TableCell align="center">
+                              <Chip
+                                label={
+                                  result.predicted_label ? "Apto" : "No apto"
+                                }
+                                sx={{
+                                  minWidth: 86,
+                                  fontWeight: 800,
+                                  backgroundColor: result.predicted_label
+                                    ? "#e9f8ef"
+                                    : "#fff0f0",
+                                  color: result.predicted_label
+                                    ? "#16803c"
+                                    : "#c23b3b",
+                                }}
+                              />
+                            </TableCell>
+
+                            <TableCell>
+                              <Stack spacing={0.75}>
+                                <Stack
+                                  direction="row"
+                                  justifyContent="space-between"
+                                  alignItems="center"
+                                >
+                                  <Typography
+                                    variant="body2"
+                                    fontWeight={900}
+                                    color={scoreTone.color}
+                                  >
+                                    {result.score_0_100.toFixed(2)}
+                                  </Typography>
+
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                  >
+                                    / 100
+                                  </Typography>
+                                </Stack>
+
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={Math.min(
+                                    Math.max(result.score_0_100, 0),
+                                    100
+                                  )}
+                                  sx={{
+                                    height: 7,
+                                    borderRadius: 10,
+                                    backgroundColor: "#edf1f5",
+                                    "& .MuiLinearProgress-bar": {
+                                      borderRadius: 10,
+                                      backgroundColor: scoreTone.color,
+                                    },
+                                  }}
+                                />
+                              </Stack>
+                            </TableCell>
+
+                            <TableCell align="right">
+                              <Stack
+                                direction="row"
+                                justifyContent="flex-end"
+                                spacing={0.5}
+                              >
+                                <Tooltip title="Ver detalle">
+                                  <IconButton
+                                    color="primary"
+                                    onClick={() => setSelectedResult(result)}
+                                    sx={{
+                                      backgroundColor: "#eef5ff",
+                                      "&:hover": {
+                                        backgroundColor: "#dcecff",
+                                      },
+                                    }}
+                                  >
+                                    <VisibilityOutlinedIcon />
+                                  </IconButton>
+                                </Tooltip>
+
+                                <Tooltip title="Abrir PDF">
+                                  <span>
                                     <IconButton
                                       color="primary"
-                                      onClick={() =>
-                                        setSelectedResult(
-                                          result
-                                        )
-                                      }
+                                      onClick={() => handleOpenPdf(result)}
+                                      disabled={!result.candidate_source?.id}
                                       sx={{
-                                        backgroundColor:
-                                          "#eef5ff",
-                                        "&:hover":
-                                          {
-                                            backgroundColor:
-                                              "#dcecff",
-                                          },
+                                        backgroundColor: "#eef5ff",
+                                        "&:hover": {
+                                          backgroundColor: "#dcecff",
+                                        },
                                       }}
                                     >
-                                      <VisibilityOutlinedIcon />
+                                      <OpenInNewIcon />
                                     </IconButton>
-                                  </Tooltip>
+                                  </span>
+                                </Tooltip>
 
-                                  <Tooltip title="Abrir PDF">
-                                    <span>
-                                      <IconButton
-                                        color="primary"
-                                        onClick={() =>
-                                          handleOpenPdf(
-                                            result
-                                          )
-                                        }
-                                        disabled={
-                                          !result
-                                            .candidate_source
-                                            ?.id
-                                        }
-                                        sx={{
-                                          backgroundColor:
-                                            "#eef5ff",
-                                          "&:hover":
-                                            {
-                                              backgroundColor:
-                                                "#dcecff",
-                                            },
-                                        }}
-                                      >
-                                        <OpenInNewIcon />
-                                      </IconButton>
-                                    </span>
-                                  </Tooltip>
-
-                                  <Tooltip title="Descargar PDF">
-                                    <span>
-                                      <IconButton
-                                        color="success"
-                                        onClick={() =>
-                                          handleDownloadPdf(
-                                            result
-                                          )
-                                        }
-                                        disabled={
-                                          !result
-                                            .candidate_source
-                                            ?.id
-                                        }
-                                        sx={{
-                                          backgroundColor:
-                                            "#ecf8f0",
-                                          "&:hover":
-                                            {
-                                              backgroundColor:
-                                                "#d9f1e2",
-                                            },
-                                        }}
-                                      >
-                                        <DownloadOutlinedIcon />
-                                      </IconButton>
-                                    </span>
-                                  </Tooltip>
-                                </Stack>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        }
-                      )}
+                                <Tooltip title="Descargar PDF">
+                                  <span>
+                                    <IconButton
+                                      color="success"
+                                      onClick={() => handleDownloadPdf(result)}
+                                      disabled={!result.candidate_source?.id}
+                                      sx={{
+                                        backgroundColor: "#ecf8f0",
+                                        "&:hover": {
+                                          backgroundColor: "#d9f1e2",
+                                        },
+                                      }}
+                                    >
+                                      <DownloadOutlinedIcon />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              </Stack>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </TableContainer>
@@ -1595,12 +1200,8 @@ const ResultsPageContent = () => {
         )}
 
         <Dialog
-          open={Boolean(
-            selectedResult
-          )}
-          onClose={() =>
-            setSelectedResult(null)
-          }
+          open={Boolean(selectedResult)}
+          onClose={() => setSelectedResult(null)}
           fullWidth
           maxWidth="md"
           PaperProps={{
@@ -1614,20 +1215,14 @@ const ResultsPageContent = () => {
             sx={{
               px: 3,
               py: 2.5,
-              background:
-                "linear-gradient(135deg, #0f4f9d 0%, #1676d2 100%)",
+              background: "linear-gradient(135deg, #0f4f9d 0%, #1676d2 100%)",
               color: "#ffffff",
             }}
           >
-            <Stack
-              direction="row"
-              spacing={1.5}
-              alignItems="center"
-            >
+            <Stack direction="row" spacing={1.5} alignItems="center">
               <Avatar
                 sx={{
-                  backgroundColor:
-                    "rgba(255,255,255,0.16)",
+                  backgroundColor: "rgba(255,255,255,0.16)",
                   color: "#ffffff",
                 }}
               >
@@ -1635,10 +1230,7 @@ const ResultsPageContent = () => {
               </Avatar>
 
               <Box>
-                <Typography
-                  variant="h6"
-                  fontWeight={900}
-                >
+                <Typography variant="h6" fontWeight={900}>
                   Detalle del candidato
                 </Typography>
 
@@ -1648,8 +1240,7 @@ const ResultsPageContent = () => {
                     opacity: 0.88,
                   }}
                 >
-                  Información normalizada
-                  y resultado de clasificación
+                  Información normalizada y resultado de clasificación
                 </Typography>
               </Box>
             </Stack>
@@ -1661,8 +1252,7 @@ const ResultsPageContent = () => {
                 xs: 2,
                 md: 3,
               },
-              backgroundColor:
-                "#f7f9fc",
+              backgroundColor: "#f7f9fc",
             }}
           >
             {selectedResult && (
@@ -1672,9 +1262,7 @@ const ResultsPageContent = () => {
                     display: "grid",
                     gridTemplateColumns: {
                       xs: "1fr",
-                      sm: (
-                        "repeat(3, minmax(0, 1fr))"
-                      ),
+                      sm: "repeat(3, minmax(0, 1fr))",
                     },
                     gap: 1.25,
                   }}
@@ -1684,30 +1272,19 @@ const ResultsPageContent = () => {
                     sx={{
                       p: 2,
                       borderRadius: 3,
-                      borderColor:
-                        CARD_BORDER_COLOR,
+                      borderColor: CARD_BORDER_COLOR,
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                    >
+                    <Typography variant="caption" color="text.secondary">
                       Posición
                     </Typography>
 
                     <Typography
                       variant="h5"
                       fontWeight={900}
-                      color={
-                        PRIMARY_DARK
-                      }
+                      color={PRIMARY_DARK}
                     >
-                      #
-                      {
-                        selectedResult
-                          .rank_position ??
-                        "--"
-                      }
+                      #{selectedResult.rank_position ?? "--"}
                     </Typography>
                   </Paper>
 
@@ -1716,14 +1293,10 @@ const ResultsPageContent = () => {
                     sx={{
                       p: 2,
                       borderRadius: 3,
-                      borderColor:
-                        CARD_BORDER_COLOR,
+                      borderColor: CARD_BORDER_COLOR,
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                    >
+                    <Typography variant="caption" color="text.secondary">
                       Clasificación
                     </Typography>
 
@@ -1734,23 +1307,16 @@ const ResultsPageContent = () => {
                     >
                       <Chip
                         label={
-                          selectedResult
-                            .predicted_label
-                            ? "Apto"
-                            : "No apto"
+                          selectedResult.predicted_label ? "Apto" : "No apto"
                         }
                         sx={{
                           fontWeight: 900,
-                          backgroundColor:
-                            selectedResult
-                              .predicted_label
-                              ? "#e9f8ef"
-                              : "#fff0f0",
-                          color:
-                            selectedResult
-                              .predicted_label
-                              ? "#16803c"
-                              : "#c23b3b",
+                          backgroundColor: selectedResult.predicted_label
+                            ? "#e9f8ef"
+                            : "#fff0f0",
+                          color: selectedResult.predicted_label
+                            ? "#16803c"
+                            : "#c23b3b",
                         }}
                       />
                     </Box>
@@ -1761,14 +1327,10 @@ const ResultsPageContent = () => {
                     sx={{
                       p: 2,
                       borderRadius: 3,
-                      borderColor:
-                        CARD_BORDER_COLOR,
+                      borderColor: CARD_BORDER_COLOR,
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                    >
+                    <Typography variant="caption" color="text.secondary">
                       Score de afinidad
                     </Typography>
 
@@ -1777,131 +1339,83 @@ const ResultsPageContent = () => {
                       fontWeight={900}
                       color="primary.main"
                     >
-                      {selectedResult
-                        .score_0_100
-                        .toFixed(2)}
+                      {selectedResult.score_0_100.toFixed(2)}
                     </Typography>
                   </Paper>
                 </Box>
 
                 <DetailSection
-                  icon={
-                    <InsertDriveFileOutlinedIcon />
-                  }
+                  icon={<InsertDriveFileOutlinedIcon />}
                   title="Archivo"
                 >
-                  <Typography
-                    variant="body2"
-                    fontWeight={700}
-                    color="#334155"
-                  >
-                    {selectedResult
-                      .candidate_source
-                      ?.original_filename ??
+                  <Typography variant="body2" fontWeight={700} color="#334155">
+                    {selectedResult.candidate_source?.original_filename ??
                       "No disponible"}
                   </Typography>
                 </DetailSection>
 
                 <DetailSection
-                  icon={
-                    <EmojiEventsOutlinedIcon />
-                  }
+                  icon={<EmojiEventsOutlinedIcon />}
                   title="Coincidencias relevantes"
                 >
                   <AttributeChips
-                    items={getRelevantMatches(
-                      selectedResult
-                    )}
+                    items={getRelevantMatches(selectedResult)}
                     emptyText="No se encontraron coincidencias directas."
                   />
                 </DetailSection>
 
                 <DetailSection
-                  icon={
-                    <PersonSearchOutlinedIcon />
-                  }
+                  icon={<PersonSearchOutlinedIcon />}
                   title="Habilidades identificadas"
                 >
                   <AttributeChips
-                    items={
-                      selectedResult
-                        .candidate_profile
-                        ?.skills ?? []
-                    }
+                    items={selectedResult.candidate_profile?.skills ?? []}
                   />
                 </DetailSection>
 
                 <DetailSection
-                  icon={
-                    <TerminalOutlinedIcon />
-                  }
+                  icon={<TerminalOutlinedIcon />}
                   title="Tecnologías"
                 >
                   <AttributeChips
-                    items={
-                      selectedResult
-                        .candidate_profile
-                        ?.technologies ?? []
-                    }
+                    items={selectedResult.candidate_profile?.technologies ?? []}
                   />
                 </DetailSection>
 
-                <DetailSection
-                  icon={
-                    <WorkOutlineIcon />
-                  }
-                  title="Experiencia"
-                >
+                <DetailSection icon={<WorkOutlineIcon />} title="Experiencia">
                   <Typography
                     variant="body2"
                     color="text.secondary"
                     sx={{
-                      whiteSpace:
-                        "pre-wrap",
+                      whiteSpace: "pre-wrap",
                       lineHeight: 1.7,
                     }}
                   >
-                    {selectedResult
-                      .candidate_profile
-                      ?.experience_summary ||
+                    {selectedResult.candidate_profile?.experience_summary ||
                       "No identificada"}
                   </Typography>
                 </DetailSection>
 
                 <DetailSection
-                  icon={
-                    <SchoolOutlinedIcon />
-                  }
+                  icon={<SchoolOutlinedIcon />}
                   title="Formación académica"
                 >
                   <Typography
                     variant="body2"
                     color="text.secondary"
                     sx={{
-                      whiteSpace:
-                        "pre-wrap",
+                      whiteSpace: "pre-wrap",
                       lineHeight: 1.7,
                     }}
                   >
-                    {selectedResult
-                      .candidate_profile
-                      ?.education_summary ||
+                    {selectedResult.candidate_profile?.education_summary ||
                       "No identificada"}
                   </Typography>
                 </DetailSection>
 
-                <DetailSection
-                  icon={
-                    <LanguageOutlinedIcon />
-                  }
-                  title="Idiomas"
-                >
+                <DetailSection icon={<LanguageOutlinedIcon />} title="Idiomas">
                   <AttributeChips
-                    items={
-                      selectedResult
-                        .candidate_profile
-                        ?.languages ?? []
-                    }
+                    items={selectedResult.candidate_profile?.languages ?? []}
                   />
                 </DetailSection>
               </Stack>
@@ -1914,26 +1428,18 @@ const ResultsPageContent = () => {
             sx={{
               px: 3,
               py: 2,
-              backgroundColor:
-                "#ffffff",
+              backgroundColor: "#ffffff",
               gap: 0.75,
             }}
           >
             <Button
               onClick={() => {
                 if (selectedResult) {
-                  handleOpenPdf(
-                    selectedResult
-                  );
+                  handleOpenPdf(selectedResult);
                 }
               }}
-              startIcon={
-                <OpenInNewIcon />
-              }
-              disabled={
-                !selectedResult
-                  ?.candidate_source?.id
-              }
+              startIcon={<OpenInNewIcon />}
+              disabled={!selectedResult?.candidate_source?.id}
               sx={{
                 fontWeight: 800,
               }}
@@ -1944,18 +1450,11 @@ const ResultsPageContent = () => {
             <Button
               onClick={() => {
                 if (selectedResult) {
-                  handleDownloadPdf(
-                    selectedResult
-                  );
+                  handleDownloadPdf(selectedResult);
                 }
               }}
-              startIcon={
-                <DownloadOutlinedIcon />
-              }
-              disabled={
-                !selectedResult
-                  ?.candidate_source?.id
-              }
+              startIcon={<DownloadOutlinedIcon />}
+              disabled={!selectedResult?.candidate_source?.id}
               sx={{
                 fontWeight: 800,
               }}
@@ -1965,9 +1464,7 @@ const ResultsPageContent = () => {
 
             <Button
               variant="contained"
-              onClick={() =>
-                setSelectedResult(null)
-              }
+              onClick={() => setSelectedResult(null)}
               sx={{
                 px: 3,
                 borderRadius: 2.5,
