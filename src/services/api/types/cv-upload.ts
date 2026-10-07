@@ -24,6 +24,24 @@ export type CandidateSource = {
   updated_at?: string;
 };
 
+
+export type CvDocumentValidationResult = {
+  valid: boolean;
+  filename?: string | null;
+  file_size_bytes?: number;
+  page_count?: number;
+  text_length?: number;
+  required_sections?: string[];
+  sections_found?: string[];
+  missing_sections?: string[];
+  missing_fields?: Record<string, string[]>;
+  multi_column_pages?: number[];
+  complex_table_pages?: number[];
+  image_dominant_pages?: number[];
+  errors: string[];
+  warnings: string[];
+};
+
 export type CvUploadResult = {
   candidate: Candidate;
   candidate_source: CandidateSource;
@@ -31,6 +49,7 @@ export type CvUploadResult = {
     path: string;
     full_path?: string | null;
   };
+  validation?: CvDocumentValidationResult;
 };
 
 export type CvBatchUploadItem =

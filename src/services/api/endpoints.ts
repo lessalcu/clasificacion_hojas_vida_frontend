@@ -9,6 +9,11 @@ export const endpoints = {
   uploadCandidatesBatch:
     "/candidates/upload-batch",
 
+  validateSingleCv: "/candidates/validate",
+
+  validateBatchCvs:
+    "/candidates/validate-batch",
+
   uploadSingleCv: "/candidates/upload",
 
   uploadBatchCvs:

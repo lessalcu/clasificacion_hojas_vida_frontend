@@ -2,6 +2,7 @@ import { endpoints } from "@/services/api/endpoints";
 import type {
   ApiResponse,
   CvBatchUploadItem,
+  CvDocumentValidationResult,
   CvUploadResult,
   UploadProgressCallback,
 } from "@/services/api/types/cv-upload";
@@ -27,12 +28,16 @@ const parseErrorMessage = (responseText: string, status: number) => {
   try {
     const parsed = JSON.parse(responseText) as {
       message?: string;
-      error?: string;
+      error?: string | { message?: string };
     };
+
+    if (typeof parsed.error === "object" && parsed.error?.message) {
+      return parsed.error.message;
+    }
 
     return (
       parsed.message ??
-      parsed.error ??
+      (typeof parsed.error === "string" ? parsed.error : undefined) ??
       `La solicitud falló con el código ${status}.`
     );
   } catch {
@@ -93,6 +98,36 @@ const sendMultipartRequest = <TResponse>(
 
     request.send(formData);
   });
+};
+
+
+export const validateSingleCv = async (
+  file: File
+): Promise<CvDocumentValidationResult> => {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+
+  const response = await sendMultipartRequest<
+    ApiResponse<CvDocumentValidationResult>
+  >(endpoints.validateSingleCv, formData);
+
+  return response.data;
+};
+
+export const validateBatchCvs = async (
+  files: File[]
+): Promise<CvDocumentValidationResult[]> => {
+  const formData = new FormData();
+
+  files.forEach((file) => {
+    formData.append("files", file, file.name);
+  });
+
+  const response = await sendMultipartRequest<
+    ApiResponse<CvDocumentValidationResult[]>
+  >(endpoints.validateBatchCvs, formData);
+
+  return response.data;
 };
 
 export const uploadSingleCv = async (

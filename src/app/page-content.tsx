@@ -5,6 +5,7 @@ import type { ChangeEvent, DragEvent, ReactNode } from "react";
 
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CloseIcon from "@mui/icons-material/Close";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
@@ -23,6 +24,9 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import FormControl from "@mui/material/FormControl";
 import IconButton from "@mui/material/IconButton";
 import InputLabel from "@mui/material/InputLabel";
@@ -49,6 +53,7 @@ import {
 import {
   uploadBatchCvs,
   uploadSingleCv,
+  validateBatchCvs,
 } from "@/services/api/cv-upload/cv-upload-service";
 import { useJobProfiles } from "@/services/api/job-profiles/use-job-profiles";
 import {
@@ -81,6 +86,11 @@ type CvQueueItem = ProcessingQueueState & {
   progress: number;
   result?: CvUploadResult;
   error?: string;
+};
+
+type RejectedFileMessage = {
+  filename: string;
+  reasons: string[];
 };
 
 type HelpTooltipProps = {
@@ -212,6 +222,10 @@ const HomePageContent = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
+  const [isValidatingFiles, setIsValidatingFiles] = useState(false);
+  const [rejectedFileMessages, setRejectedFileMessages] = useState<
+    RejectedFileMessage[]
+  >([]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
@@ -253,11 +267,16 @@ const HomePageContent = () => {
     [queue]
   );
 
-  const canUpload = pendingItems.length > 0 && !isUploading && !isProcessing;
+  const canUpload =
+    pendingItems.length > 0 &&
+    !isValidatingFiles &&
+    !isUploading &&
+    !isProcessing;
 
   const canStartClassification =
     Boolean(selectedProfileId) &&
     uploadedItems.length > 0 &&
+    !isValidatingFiles &&
     !isUploading &&
     !isProcessing;
 
@@ -277,68 +296,47 @@ const HomePageContent = () => {
     );
   };
 
-  const addFiles = (incomingFiles: File[]) => {
-    const invalidTypeFiles: string[] = [];
-    const oversizedFiles: string[] = [];
-    const validFiles: File[] = [];
+  const addFiles = async (incomingFiles: File[]) => {
+    if (isValidatingFiles || isUploading || isProcessing) {
+      return;
+    }
 
-    incomingFiles.forEach((file) => {
+    const currentKeys = new Set(queue.map((item) => item.key));
+    const uniqueFiles = incomingFiles.filter(
+      (file) => !currentKeys.has(getFileKey(file))
+    );
+    const availableSlots = Math.max(MAX_FILES - queue.length, 0);
+    const filesWithinLimit = uniqueFiles.slice(0, availableSlots);
+    const filesOverLimit = uniqueFiles.slice(availableSlots);
+
+    const rejected: RejectedFileMessage[] = filesOverLimit.map((file) => ({
+      filename: file.name,
+      reasons: [`Solo se permiten hasta ${MAX_FILES} hojas de vida por lote.`],
+    }));
+    const filesToValidate: File[] = [];
+
+    filesWithinLimit.forEach((file) => {
       const isPdf =
         file.type === "application/pdf" ||
         file.name.toLowerCase().endsWith(".pdf");
 
       if (!isPdf) {
-        invalidTypeFiles.push(file.name);
+        rejected.push({
+          filename: file.name,
+          reasons: ["Solo se permiten archivos PDF."],
+        });
         return;
       }
 
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        oversizedFiles.push(file.name);
+        rejected.push({
+          filename: file.name,
+          reasons: ["El tamaño máximo permitido es 10 MB por archivo."],
+        });
         return;
       }
 
-      validFiles.push(file);
-    });
-
-    if (invalidTypeFiles.length > 0) {
-      toast.error(
-        `Solo se permiten archivos PDF: ${invalidTypeFiles.join(", ")}`,
-        { autoClose: TOAST_DURATION }
-      );
-    }
-
-    if (oversizedFiles.length > 0) {
-      toast.error(
-        `El tamaño máximo por archivo es 10 MB: ${oversizedFiles.join(", ")}`,
-        { autoClose: TOAST_DURATION }
-      );
-    }
-
-    setQueue((current) => {
-      const currentKeys = new Set(current.map((item) => item.key));
-      const availableSlots = MAX_FILES - current.length;
-
-      const accepted = validFiles
-        .filter((file) => !currentKeys.has(getFileKey(file)))
-        .slice(0, Math.max(availableSlots, 0));
-
-      if (accepted.length < validFiles.length) {
-        toast.warning(
-          `Solo se permiten hasta ${MAX_FILES} archivos por carga.`,
-          { autoClose: TOAST_DURATION }
-        );
-      }
-
-      return [
-        ...current,
-        ...accepted.map((file) => ({
-          key: getFileKey(file),
-          file,
-          status: "ready" as const,
-          progress: 0,
-          ...createInitialProcessingState(),
-        })),
-      ];
+      filesToValidate.push(file);
     });
 
     setProcessingCompleted(false);
@@ -349,10 +347,79 @@ const HomePageContent = () => {
     );
     setProcessingRunId(null);
     setRankingResults([]);
+
+    if (filesToValidate.length === 0) {
+      if (rejected.length > 0) {
+        setRejectedFileMessages(rejected);
+      }
+      return;
+    }
+
+    setIsValidatingFiles(true);
+
+    try {
+      const validationResults = await validateBatchCvs(filesToValidate);
+      const acceptedFiles: File[] = [];
+
+      filesToValidate.forEach((file, index) => {
+        const validation = validationResults[index];
+
+        if (!validation) {
+          rejected.push({
+            filename: file.name,
+            reasons: [
+              "No se pudo obtener el resultado de validación del documento.",
+            ],
+          });
+          return;
+        }
+
+        if (!validation.valid) {
+          rejected.push({
+            filename: validation.filename || file.name,
+            reasons:
+              validation.errors.length > 0
+                ? validation.errors
+                : ["El documento no cumple el formato estándar requerido."],
+          });
+          return;
+        }
+
+        acceptedFiles.push(file);
+      });
+
+      if (acceptedFiles.length > 0) {
+        setQueue((current) => [
+          ...current,
+          ...acceptedFiles.map((file) => ({
+            key: getFileKey(file),
+            file,
+            status: "ready" as const,
+            progress: 0,
+            ...createInitialProcessingState(),
+          })),
+        ]);
+      }
+    } catch (error) {
+      const message = getErrorMessage(error);
+
+      filesToValidate.forEach((file) => {
+        rejected.push({
+          filename: file.name,
+          reasons: [`No se pudo validar el documento: ${message}`],
+        });
+      });
+    } finally {
+      setIsValidatingFiles(false);
+
+      if (rejected.length > 0) {
+        setRejectedFileMessages(rejected);
+      }
+    }
   };
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(event.target.files ?? []));
+    void addFiles(Array.from(event.target.files ?? []));
     event.target.value = "";
   };
 
@@ -360,13 +427,13 @@ const HomePageContent = () => {
     event.preventDefault();
     setIsDragging(false);
 
-    if (!isUploading && !isProcessing) {
-      addFiles(Array.from(event.dataTransfer.files ?? []));
+    if (!isValidatingFiles && !isUploading && !isProcessing) {
+      void addFiles(Array.from(event.dataTransfer.files ?? []));
     }
   };
 
   const removeItem = (key: string) => {
-    if (isUploading || isProcessing) {
+    if (isValidatingFiles || isUploading || isProcessing) {
       return;
     }
 
@@ -374,7 +441,7 @@ const HomePageContent = () => {
   };
 
   const clearQueue = () => {
-    if (!isUploading && !isProcessing) {
+    if (!isValidatingFiles && !isUploading && !isProcessing) {
       setQueue([]);
       setProcessingCompleted(false);
       setProcessingFailed(false);
@@ -949,12 +1016,14 @@ const HomePageContent = () => {
               role="button"
               tabIndex={0}
               onClick={() =>
+                !isValidatingFiles &&
                 !isUploading &&
                 !isProcessing &&
                 fileInputRef.current?.click()
               }
               onKeyDown={(event) => {
                 if (
+                  !isValidatingFiles &&
                   !isUploading &&
                   !isProcessing &&
                   (event.key === "Enter" || event.key === " ")
@@ -964,7 +1033,7 @@ const HomePageContent = () => {
               }}
               onDragOver={(event) => {
                 event.preventDefault();
-                if (!isUploading && !isProcessing) {
+                if (!isValidatingFiles && !isUploading && !isProcessing) {
                   setIsDragging(true);
                 }
               }}
@@ -980,14 +1049,17 @@ const HomePageContent = () => {
                 placeItems: "center",
                 textAlign: "center",
                 cursor:
-                  isUploading || isProcessing ? "not-allowed" : "pointer",
+                  isValidatingFiles || isUploading || isProcessing
+                    ? "not-allowed"
+                    : "pointer",
                 border: "2px dashed",
                 borderColor: isDragging ? "primary.main" : "#a9c9f5",
                 borderRadius: 3,
                 backgroundColor: isDragging
                   ? "rgba(25,118,210,.07)"
                   : "#fbfdff",
-                opacity: isUploading || isProcessing ? 0.7 : 1,
+                opacity:
+                  isValidatingFiles || isUploading || isProcessing ? 0.7 : 1,
               }}
             >
               <Stack spacing={1} alignItems="center" sx={{ p: 2 }}>
@@ -1037,7 +1109,7 @@ const HomePageContent = () => {
                 <Button
                   color="error"
                   onClick={clearQueue}
-                  disabled={isUploading || isProcessing}
+                  disabled={isValidatingFiles || isUploading || isProcessing}
                 >
                   Quitar todos
                 </Button>
@@ -1525,6 +1597,60 @@ const HomePageContent = () => {
           />
         </Box>
       </Box>
+
+      <Dialog
+        open={rejectedFileMessages.length > 0}
+        maxWidth="sm"
+        fullWidth
+        disableEscapeKeyDown
+      >
+        <DialogTitle sx={{ pr: 6, fontWeight: 800 }}>
+          Archivos no añadidos
+          <IconButton
+            aria-label="Cerrar"
+            onClick={() => setRejectedFileMessages([])}
+            sx={{
+              position: "absolute",
+              right: 8,
+              top: 8,
+              color: "text.secondary",
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Los siguientes documentos fueron rechazados y no se añadieron a la
+            carga porque no cumplen las validaciones requeridas.
+          </Typography>
+
+          <Stack spacing={2}>
+            {rejectedFileMessages.map((item, index) => (
+              <Box key={`${item.filename}-${index}`}>
+                <Typography variant="body2" fontWeight={800}>
+                  {item.filename}
+                </Typography>
+
+                <Box component="ul" sx={{ mt: 0.75, mb: 0, pl: 2.5 }}>
+                  {item.reasons.map((reason, reasonIndex) => (
+                    <Typography
+                      key={`${reason}-${reasonIndex}`}
+                      component="li"
+                      variant="body2"
+                      color="error.main"
+                      sx={{ mb: 0.5 }}
+                    >
+                      {reason}
+                    </Typography>
+                  ))}
+                </Box>
+              </Box>
+            ))}
+          </Stack>
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 };
